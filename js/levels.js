@@ -19,15 +19,15 @@
 
 const TUTORIAL_TEXT = {
   sprint: ['Hold SHIFT\nto sprint', 'Push the stick\nall the way to sprint'],
-  jump: ['SPACE to jump', 'Tap JUMP\nto jump'],
-  flip: ['Jump while sprinting\nor sliding to flip', 'Jump while sprinting\nor sliding to flip'],
-  slide: ['SHIFT or RIGHT CLICK\nto slide', 'Tap SLIDE\nto slide'],
-  shoot: ['CLICK to shoot', 'Drag the right stick\nto aim and fire'],
+  jump: ['SPACE to jump', 'Tap JUMP or flick\nthe left stick up'],
+  flip: ['Jump while sprinting\nor sliding to flip', 'Push the stick all the way,\nthen JUMP to flip'],
+  slide: ['SHIFT or RIGHT CLICK\nto slide', 'Tap SLIDE or flick\nthe left stick down'],
+  shoot: ['CLICK to shoot', 'Hold the red stick to fire.\nDrag it to aim'],
   slow: ['Press Q to\nslow time', 'Tap SLOW\nto slow time'],
   dodge: ['Slide or jump\nunder bullets', 'Slide or jump\nunder bullets'],
   glass: ['Glass breaks.\nSo do they.', 'Glass breaks.\nSo do they.'],
   barrel: ['Barrels go boom', 'Barrels go boom'],
-  pickup: ['Press E to grab\na dropped gun', 'Tap GRAB to take\na dropped gun'],
+  pickup: ['Press E to grab\na dropped gun', 'Walk over a dropped gun\nand tap GRAB'],
   deflect: ['Shoot bullets\nout of the air', 'Shoot bullets\nout of the air'],
 };
 
@@ -301,6 +301,12 @@ const HAND_LEVELS = [
 ];
 
 // level names per chapter (chapter 1 starts with the six handcrafted ones)
+// handcrafted ambushes: [tileX, standingRow, type, triggerTileX, kind]
+HAND_LEVELS[1].rooms[2].ambush = [[39, 5, 'grunt', 27, 'door']];
+HAND_LEVELS[2].rooms[2].ambush = [[21, 5, 'smg', 11, 'drop']];
+HAND_LEVELS[4].rooms[1].ambush = [[30, 5, 'shotgun', 18, 'door']];
+HAND_LEVELS[5].rooms[2].ambush = [[26, 5, 'knife', 14, 'door']];
+
 const GEN_NAMES = [
   ['Clean Room', 'Test Fire', 'Drill Hall', 'Calibration', 'White Noise', 'Control Group', 'Sim Run', 'Lab Rat', 'Graduation'],
   ['Paper Trail', 'Open Plan', 'Cubicle Storm', 'Coffee Break', 'Overtime', 'Board Meeting', 'Water Cooler', 'Reply All', 'Copy Room', 'HR Visit', 'Quarterly', 'Middle Management', 'Hostile Takeover', 'Corner Office', 'Golden Parachute'],
@@ -368,7 +374,8 @@ function genRoom(seed, d, opts = {}) {
   const flatAt = i => i > 1 && i < cols - 2 && f[i - 1] === f[i] && f[i + 1] === f[i] && c[i] < f[i] - 3 && at(i, f[i]) === '#';
   // space to hop over a 1-tile crate, and never at the mouth of a vent (you can't jump while ducked under it)
   const vent = i => i > 0 && i < cols - 1 && c[i] >= f[i] - 3;
-  const roomy = i => f[i] - c[i] >= 5 && !vent(i - 2) && !vent(i - 1) && !vent(i + 1) && !vent(i + 2);
+  // (the columns either side need the same headroom, since that's where you take off from)
+  const roomy = i => [i - 1, i, i + 1].every(k => f[k] - c[k] >= 5 && (c[k] === 0 || f[k] - c[k] >= 6)) && !vent(i - 2) && !vent(i - 1) && !vent(i + 1) && !vent(i + 2);
   const used = new Set();
   const free = (i, r) => at(i, r) === '.' && !used.has(i + ',' + r);
   const mark = (i, r, v) => { set(i, r, v); used.add(i + ',' + r); };
@@ -403,20 +410,23 @@ function genRoom(seed, d, opts = {}) {
   const spots = [];
   for (let i = 10; i < cols - 3; i++) if (flatAt(i) && free(i, f[i] - 1)) spots.push([i, f[i] - 1]);
   for (const L of ledges) for (let k = 0; k < L.len; k++) spots.push([L.x + k, L.r - 1]);
-  let placed = 0, lastX = -99;
+  // keep foes spread out: 5 tiles apart on the same level, 3 apart across levels
+  const taken = [];
+  const spaced = (x, y) => taken.every(([tx, ty]) => Math.abs(tx - x) >= (Math.abs(ty - y) < 2 ? 5 : 3));
+  let placed = 0;
   if (opts.boss) {
     const s = spots.filter(p => p[0] > cols * 0.55 && p[1] === f[p[0]] - 1);
-    if (s.length) { const p = s[Math.floor(R() * s.length)]; mark(p[0], p[1], 'h'); placed++; lastX = p[0]; }
+    if (s.length) { const p = s[Math.floor(R() * s.length)]; mark(p[0], p[1], 'h'); placed++; taken.push(p); }
   }
-  for (let tries = 0; tries < 60 && placed < n && spots.length; tries++) {
+  for (let tries = 0; tries < 90 && placed < n && spots.length; tries++) {
     const p = spots[Math.floor(R() * spots.length)];
-    if (!free(p[0], p[1]) || Math.abs(p[0] - lastX) < 3) continue;
+    if (!free(p[0], p[1]) || !spaced(p[0], p[1])) continue;
     let type = pool[Math.floor(R() * pool.length)];
     if (type === 'rifle' && p[0] < cols * 0.5) type = 'grunt';
     const away = ch(0.18 - d * 0.1);
     const cch = charOf[type];
     mark(p[0], p[1], away ? cch.toUpperCase() : cch);
-    placed++; lastX = p[0];
+    placed++; taken.push(p);
     // cover or a barrel beside some of them
     if (p[1] === f[p[0]] - 1) {
       if (ch(0.32) && free(p[0] - 2, p[1]) && flatAt(p[0] - 2) && roomy(p[0] - 2)) mark(p[0] - 2, p[1], 'X');
@@ -452,7 +462,105 @@ function genRoom(seed, d, opts = {}) {
     for (let k = 1; k < w; k++) used.add((i + k) + ',' + r);
     if (ch(0.5)) tries += 6;
   }
-  return { map: g.map(r => r.join('')), gen: true };
+  // ambushes further into the room
+  const ambush = [];
+  const nAmb = d < 0.2 ? 0 : (ch(0.35 + d * 0.5) ? 1 : 0) + (d > 0.55 && ch(0.4) ? 1 : 0);
+  const ambPool = ['grunt', 'smg', 'shotgun', d > 0.35 ? 'knife' : 'grunt'];
+  const ambSpaced = (x, y) => taken.every(([tx, ty]) => Math.abs(tx - x) >= (Math.abs(ty - y) < 2 ? 4 : 2));
+  for (let tries = 0; tries < 120 && ambush.length < nAmb; tries++) {
+    const i = ri(16, cols - 7), r = f[i] - 1;
+    if (!flatAt(i) || !free(i, r) || !free(i - 1, r) || !free(i + 1, r) || !ambSpaced(i, r)) continue;
+    const kind = ch(0.3) ? 'drop' : 'door';
+    ambush.push([i, r, ambPool[Math.floor(R() * ambPool.length)], Math.max(4, i - ri(7, 10)), kind]);
+    taken.push([i, r]); used.add(i + ',' + r); used.add((i - 1) + ',' + r); used.add((i + 1) + ',' + r);
+  }
+  return { map: g.map(r => r.join('')), gen: true, ambush };
+}
+
+/* ----------------------------------------------------- big multi-level maps */
+// A wide, tall hall like the original's warehouse: a ground floor, stairs up to a long deck,
+// a high catwalk for snipers, a drop back down and the exit far across the floor.
+function genBigRoom(seed, d, opts = {}) {
+  const R = mulberry32(seed * 104729 + 3);
+  const ri = (a, b) => a + Math.floor(R() * (b - a + 1));
+  const ch = p => R() < p;
+  const st = STYLES[opts.style || 0];
+  const cols = ri(66, 80), rows = 15;
+  const g = [];
+  for (let r = 0; r < rows; r++) { const row = []; for (let i = 0; i < cols; i++) row.push(r === 0 || r === rows - 1 || i === 0 || i === cols - 1 ? '#' : '.'); g.push(row); }
+  const set = (i, r, v) => { if (r > 0 && r < rows - 1 && i > 0 && i < cols - 1) g[r][i] = v; };
+  const at = (i, r) => (r >= 0 && r < rows && i >= 0 && i < cols ? g[r][i] : '#');
+  // stairs from the ground (row 13) up five rows to the deck (row 9)
+  const s1 = ri(15, 19);
+  for (let k = 0; k < 5; k++) { set(s1 + k, 13 - k, '/'); for (let r = 14 - k; r <= 13; r++) set(s1 + k, r, '#'); }
+  const deckEnd = s1 + 5 + ri(22, 30);
+  for (let i = s1 + 5; i <= deckEnd; i++) set(i, 9, '#');
+  // a high catwalk over the deck, reached with two hops
+  const cw = s1 + 5 + ri(6, 10), cwLen = ri(7, 10);
+  for (let k = 0; k < 3; k++) set(cw - 4 + k, 7, '=');
+  for (let k = 0; k < cwLen; k++) set(cw + k, 5, '=');
+  // a lower ledge on the far ground floor
+  const gl = deckEnd + ri(5, 9);
+  if (gl + 5 < cols - 8) for (let k = 0; k < 4; k++) set(gl + k, 10, '=');
+  // lights: under the roof, and under the deck
+  for (let i = 4; i < cols - 4; i += ri(9, 13)) if (at(i, 1) === '.' && at(i + 1, 1) === '.') set(i, 1, 'l');
+  for (let i = s1 + 8; i < deckEnd - 2; i += 10) if (at(i, 10) === '.' && at(i + 1, 10) === '.') set(i, 10, 'l');
+  set(2, 13, 'P'); set(cols - 4, 13, 'D');
+  // standing spots per area
+  const area = (x0, x1, row) => { const out = []; for (let i = x0; i <= x1; i++) if (at(i, row) === '.' && at(i, row + 1) !== '.' && at(i, row + 1) !== 'l') out.push([i, row]); return out; };
+  const deck = area(s1 + 7, deckEnd - 1, 8), cat = area(cw, cw + cwLen - 1, 4), under = area(s1 + 8, deckEnd - 2, 13), far = area(deckEnd + 3, cols - 7, 13), near = area(9, s1 - 2, 13);
+  const pool = ['grunt', 'grunt', 'smg'];
+  if (d > 0.25) pool.push('shotgun');
+  if (d > 0.35) pool.push('knife');
+  if (d > 0.6) pool.push('heavy');
+  const charOf = { grunt: 'e', smg: 'm', shotgun: 's', rifle: 'r', heavy: 'h', knife: 'k' };
+  const taken = [];
+  const spaced = (x, y) => taken.every(([tx, ty]) => Math.abs(tx - x) >= (Math.abs(ty - y) < 2 ? 5 : 3));
+  const put = (list, type) => {
+    for (let t = 0; t < 30 && list.length; t++) {
+      const p = list[Math.floor(R() * list.length)];
+      if (at(p[0], p[1]) !== '.' || !spaced(p[0], p[1])) continue;
+      set(p[0], p[1], charOf[type]); taken.push(p); return true;
+    }
+    return false;
+  };
+  put(near, 'grunt');
+  for (let k = 0; k < 2 + Math.round(d * 1.5); k++) put(deck, pool[Math.floor(R() * pool.length)]);
+  put(cat, d > 0.3 ? 'rifle' : 'grunt');
+  for (let k = 0; k < 1 + Math.round(d); k++) put(under, pool[Math.floor(R() * pool.length)]);
+  for (let k = 0; k < 2 + Math.round(d * 2); k++) put(far, pool[Math.floor(R() * pool.length)]);
+  if (opts.boss) put(far, 'heavy');
+  // cover and dressing
+  const furn = st.furn;
+  for (let t = 0; t < 40; t++) {
+    const lists = [near, deck, far, under];
+    const L = lists[Math.floor(R() * lists.length)];
+    if (!L.length) continue;
+    const p = L[Math.floor(R() * L.length)];
+    const kind = furn[Math.floor(R() * furn.length)];
+    const w = kind === 'T' ? 3 : kind === 'B' || kind === 'L' || kind === 'u' ? 2 : 1;
+    let ok = true;
+    for (let k = -1; k <= w; k++) if (at(p[0] + k, p[1]) !== '.' || at(p[0] + k, p[1] + 1) === '.' || at(p[0] + k, p[1] - 1) !== '.') ok = false;
+    if ((kind === 'X' || kind === 'L' || kind === 'v') && at(p[0], p[1] - 2) !== '.') ok = false;
+    if (!ok) continue;
+    set(p[0], p[1], kind);
+    for (let k = 1; k < w; k++) set(p[0] + k, p[1], kind === 'T' || kind === 'B' || kind === 'L' || kind === 'u' ? '.' : kind);
+    if (ch(0.5)) t += 5;
+  }
+  for (const L of [deck, far]) if (ch(st.barrel + 0.2) && L.length) { const p = L[Math.floor(R() * L.length)]; if (at(p[0], p[1]) === '.' && at(p[0] + 1, p[1]) === '.') set(p[0], p[1], 'O'); }
+  // ambushes: one on the deck, one on the far floor
+  const ambush = [];
+  for (const [L, trigOff] of [[deck, 9], [far, 10]]) {
+    if (!ch(0.45 + d * 0.4)) continue;
+    for (let t = 0; t < 20; t++) {
+      const p = L[Math.floor(R() * L.length)];
+      if (!p || at(p[0], p[1]) !== '.' || at(p[0] - 1, p[1]) !== '.' || at(p[0] + 1, p[1]) !== '.' || !spaced(p[0], p[1])) continue;
+      ambush.push([p[0], p[1], pool[Math.floor(R() * pool.length)] === 'heavy' ? 'smg' : pool[Math.floor(R() * pool.length)], Math.max(4, p[0] - trigOff), L === far && ch(0.4) ? 'drop' : 'door']);
+      taken.push(p);
+      break;
+    }
+  }
+  return { map: g.map(r => r.join('')), gen: true, big: true, ambush };
 }
 
 /* --------------------------------------------------------------- levels */
@@ -479,14 +587,18 @@ function getLevel(i) {
     L = { name: h.name, rooms: h.rooms, par: h.par, hand: true };
   } else {
     const d = levelDiff(i);
-    const nRooms = boss ? 4 : 3;
+    const big = inCh === 7 || inCh === 12;
+    const nRooms = boss ? 4 : big ? 2 : 3;
     const rooms = [];
-    for (let r = 0; r < nRooms; r++) rooms.push(genRoom(1000 + i * 31 + r * 7, clamp(d + r * 0.03, 0, 1), { boss: boss && r === nRooms - 1, style: chapter }));
+    for (let r = 0; r < nRooms; r++) {
+      if (big && r === 1) rooms.push(genBigRoom(1000 + i * 31 + r * 7, clamp(d + 0.04, 0, 1), { style: chapter }));
+      else rooms.push(genRoom(1000 + i * 31 + r * 7, clamp(d + r * 0.03, 0, 1), { boss: boss && r === nRooms - 1, style: chapter }));
+    }
     let par = 0;
-    for (const rm of rooms) par += rm.map[0].length * 0.45 + countEnemies(rm.map) * 3 + 2;
+    for (const rm of rooms) par += rm.map[0].length * (rm.big ? 0.6 : 0.45) + (countEnemies(rm.map) + (rm.ambush ? rm.ambush.length : 0)) * 3 + 2;
     const names = GEN_NAMES[chapter];
     const k = chapter === 0 ? inCh - HAND_LEVELS.length : inCh;
-    L = { name: names[k % names.length], rooms, par: Math.round(par / 5) * 5 };
+    L = { name: names[k % names.length], rooms, par: Math.round(par / 5) * 5, big };
   }
   L.index = i;
   L.chapter = chapter;
@@ -500,7 +612,7 @@ function getLevel(i) {
 function endlessRoom(runSeed, n) {
   const d = clamp(0.25 + n * 0.06, 0, 1);
   const t = Math.floor(n / 4) % THEMES.length;
-  const room = genRoom(runSeed + n * 101, d, { boss: n > 0 && n % 6 === 5, style: t });
+  const room = n > 0 && n % 7 === 3 ? genBigRoom(runSeed + n * 101, d, { style: t }) : genRoom(runSeed + n * 101, d, { boss: n > 0 && n % 6 === 5, style: t });
   room.theme = t;
   return room;
 }

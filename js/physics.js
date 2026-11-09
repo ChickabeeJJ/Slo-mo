@@ -9,7 +9,7 @@
    ========================================================================= */
 
 const Rigid = (() => {
-  const G = 2300, H = 1 / 120;
+  const G = 3000, H = 1 / 120;          // heavy: debris drops and lands with weight
 
   // o: { x, y, a, vx, vy, w, L (length along the box axis), T (thickness), density, e, mu }
   function make(o) {

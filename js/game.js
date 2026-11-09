@@ -16,6 +16,7 @@ const Game = (() => {
   let mode = 'menu';            // menu | campaign | endless
   let paused = false;
   let level = null, levelIdx = 0, roomIdx = 0, room = null;
+  let ambushes = [];
   let player = null, enemies = [], bullets = [], pieces = [], corpses = [], pickups = [], crates = [], barrels = [], panes = [], ghosts = [], pendingBooms = [];
   let ts = 1, slowOn = false, focus = 1, forcedT = 0, forcedScale = 1, hitstop = 0, closeCd = 0, heartT = 0, ghostT = 0;
   let clock = 0, roomT = 0, runTime = 0, deathT = 0, fade = null, doorOpen = false, clearT = -1, flash = 0, flashCol = '#ffffff';
@@ -131,26 +132,60 @@ const Game = (() => {
     player.weapon = { id: w.id, ammo: w.mag, cd: 0, reloadT: 0, kick: 0, kick2: 0, alt: 0 };
     player.pickup = null;
     player.facing = 1; player.aim = 0;
-    for (const d of room.enemyDefs) {
-      const def = ENEMIES[d.type];
-      const e = makeChar(d.x, d.y, { color: '#e2434b', dark: '#b02a33', deadColor: deadCol(), scale: def.scale });
-      e.type = d.type; e.def = def; e.hp = def.hp; e.gun = def.gun;
-      const towardSpawn = room.spawn.x < d.x ? -1 : 1;
-      e.facing = d.away ? -towardSpawn : towardSpawn;
-      e.aim = e.facing > 0 ? 0.15 : Math.PI - 0.15;
-      e.alert = false; e.reactT = 0; e.cd = rand(0.2, 0.6); e.charge = 0; e.burst = 0; e.burstT = 0; e.seeT = 0; e.lostT = 0;
-      e.homeX = d.x; e.strafeT = rand(1, 3); e.moveDir = 0; e.meleeT = -1; e.jumpCd = 0; e.flinch = 0;
-      e.body.gunId = def.gun;
-      enemies.push(e);
-    }
-    crates = room.crateDefs.map(c => Object.assign(Rigid.make({ x: c.x, y: c.y, a: 0, L: 32, T: 32, density: 3.2, e: 0.12, mu: 0.75 }), { crate: true, sleep: 1 }));
+    for (const d of room.enemyDefs) enemies.push(makeEnemy(d.type, d.x, d.y, d.away));
+    ambushes = room.ambushDefs.map(a => Object.assign({}, a, { state: 'wait', t: 0, anim: 0 }));
+    room.ambushState = ambushes;
+    crates = room.crateDefs.map(c => Object.assign(Rigid.make({ x: c.x, y: c.y, a: 0, L: 32, T: 32, density: 3.2, e: 0.12, mu: 0.75 }), { crate: true, sleep: 1, hp: 4 }));
     room.dyn = [];
     barrels = room.barrelDefs.map(b => ({ x: b.x, y: b.y, w: 30, h: 42, hp: 1, fuse: -1, gone: false, seed: Math.random() * 10 }));
     panes = room.panesDef.map(g => Object.assign({}, g, { broken: false }));
-    doorOpen = enemies.length === 0;
+    doorOpen = true;            // exits are always open: clearing the room is optional, just worth points
     clearT = -1; roomT = 0; deathT = 0;
     forcedT = 0; hitstop = 0;
   }
+  function makeEnemy(type, x, y, away) {
+    const def = ENEMIES[type];
+    const e = makeChar(x, y, { color: '#e2434b', dark: '#b02a33', deadColor: deadCol(), scale: def.scale });
+    e.type = type; e.def = def; e.hp = def.hp; e.gun = def.gun;
+    const towardSpawn = room.spawn.x < x ? -1 : 1;
+    e.facing = away ? -towardSpawn : towardSpawn;
+    e.aim = e.facing > 0 ? 0.15 : Math.PI - 0.15;
+    e.alert = false; e.reactT = 0; e.cd = rand(0.2, 0.6); e.charge = 0; e.burst = 0; e.burstT = 0; e.seeT = 0; e.lostT = 0;
+    e.homeX = x; e.strafeT = rand(1, 3); e.moveDir = 0; e.meleeT = -1; e.jumpCd = 0; e.flinch = 0;
+    e.body.gunId = def.gun;
+    return e;
+  }
+
+  // Ambushes: an enemy bursts out of a side door (or drops from a ceiling hatch) once you pass a
+  // trigger line. Fair by design: there's an alarm and a flashing door first, they appear well ahead
+  // of you (never behind or on top of you), and they take extra time before their first shot.
+  function updateAmbushes(dt) {
+    for (const a of ambushes) {
+      if (a.state === 'wait') {
+        if (player.alive && player.x >= a.trigger) {
+          if (Math.abs(player.x - a.x) < 200 || player.x > a.x) { a.state = 'skip'; continue; }
+          a.state = 'warn'; a.t = 0.75;
+          Sfx.alarm();
+          Fx.text(a.x, a.y - 130, '!', '#e2434b', 34);
+        }
+      } else if (a.state === 'warn') {
+        a.t -= dt; a.anim = Math.min(1, a.anim + dt / 0.6);
+        if (a.t <= 0) {
+          const y = a.kind === 'drop' ? a.dropY : a.y;
+          const e = makeEnemy(a.type, a.x, y, false);
+          e.facing = player.x < a.x ? -1 : 1; e.aim = e.facing > 0 ? 0 : Math.PI;
+          e.alert = true; e.reactT = e.def.react * reactMul() + 0.45; e.lastX = player.x; e.lastY = player.y - 58;
+          e.body.alpha = a.kind === 'door' ? 0 : null;
+          if (a.kind === 'drop') { e.grounded = false; e.vy = 200; Fx.dust(a.x, a.dropY - 92, 10, room.theme.side, 0.8); Sfx.crate(); }
+          else { Fx.smoke(a.x, a.y - 50, 6, '#c9c9cf', 0.6); }
+          enemies.push(e);
+          a.state = 'done';
+          emit('ambush');
+        }
+      } else if (a.state === 'done') a.anim = Math.max(0, a.anim - dt / 2.5);
+    }
+  }
+
   const deadCol = () => (room && room.theme.dark ? '#c9cfdb' : '#eeeef1');
 
   function makeChar(x, y, o) {
@@ -265,6 +300,8 @@ const Game = (() => {
       for (const e of enemies) updateEnemy(e, wdt);
       updateBullets(wdt);
       updateWorldBits(wdt);
+      if (state === 'play') updateAmbushes(wdt);
+      updateDoor(dtReal);
       checkRoomFlow(dtReal);
     }
     // ghosts (slow-motion after-images)
@@ -393,6 +430,8 @@ const Game = (() => {
       p.vx = p.slideDir * 230;
       if (room.canStand(p, STAND_H, panes)) { p.crawl = false; p.h = STAND_H; }
     }
+    // safety net: if we're ever standing inside a low ceiling, drop back into a crawl
+    if (p.h === STAND_H && p.grounded && !room.canStand(p, STAND_H, panes)) { p.h = SLIDE_H; p.crawl = true; p.flipping = false; if (!p.slideDir) p.slideDir = p.facing; }
     const sliding = p.slideT > 0 || p.crawl || p.airSlide;
 
     // ---- horizontal accel
@@ -402,7 +441,8 @@ const Game = (() => {
     }
 
     // ---- jump
-    if (p.jumpBuf > 0 && (p.grounded || p.coyote > 0) && !p.crawl && !p.airSlide) {
+    const headroom = room.canStand(p, STAND_H, panes);
+    if (p.jumpBuf > 0 && (p.grounded || p.coyote > 0) && !p.crawl && !p.airSlide && headroom) {
       p.jumpBuf = 0; p.coyote = 0;
       p.vy = -JUMP_V;
       if (p.slideT > 0) { p.vx *= 1.05; p.slideT = 0; }
@@ -552,6 +592,27 @@ const Game = (() => {
       }
     }
   }
+  // a broken crate bursts into loose planks (rigid boxes too)
+  function smashCrate(c, ux, uy) {
+    if (c.gone) return;
+    c.gone = true;
+    const mat = crateMaterial(room.theme);
+    const l = Math.hypot(ux, uy) || 1; ux /= l; uy /= l;
+    for (let i = 0; i < 6; i++) {
+      const horiz = i < 4;
+      const off = (i % 4 - 1.5) * 8;
+      const pl = Rigid.make({
+        x: c.x + (horiz ? 0 : (i === 4 ? -12 : 12)), y: c.y + (horiz ? off : 0), a: c.a + (horiz ? 0 : Math.PI / 2),
+        L: horiz ? 30 : 26, T: 6, density: 0.9, e: 0.15, mu: 0.75,
+        vx: ux * rand(150, 380) + rand(-120, 120), vy: uy * rand(100, 250) - rand(200, 420), w: rand(-14, 14),
+      });
+      pieces.push(Object.assign(pl, { dz: 0.06, color: i % 2 ? mat.base : (mat.frame || mat.dark), target: i % 2 ? mat.base : (mat.frame || mat.dark), whiteT: 1, plank: true }));
+    }
+    Fx.chips(c.x, c.y, ux * 300, uy * 300 - 200, mat.base, 14); Fx.dust(c.x, c.y, 8, '#d8d0c0', 1);
+    Sfx.smash();
+    crates = crates.filter(o => o !== c);
+  }
+
   // tops of upright crates act as platforms
   function cratePlats() {
     const out = [];
@@ -841,7 +902,9 @@ const Game = (() => {
         for (const c of crates) {
           if (Math.abs(c.x - nx) > 30 || Math.abs(c.y - ny) > 30 || !Rigid.contains(c, nx, ny, 1)) continue;
           Rigid.impulse(c, nx, ny, ux * c.m * (b.big ? 260 : 150), uy * c.m * 150 - c.m * 40);
-          Fx.chips(nx, ny, -b.vx, -b.vy, '#c9a477', 5); Sfx.crate();
+          Fx.chips(nx, ny, -b.vx, -b.vy, crateMaterial(room.theme).base, 5); Sfx.crate();
+          c.hp -= b.dmg || 1; c.flash = 1;
+          if (c.hp <= 0) smashCrate(c, ux, uy);
           if (b.blast) { explode(nx, ny, b.blast, b.owner === 'p'); alive = false; break; }
           if (!b.wallPierce) { alive = false; break; }
         }
@@ -960,8 +1023,8 @@ const Game = (() => {
     focus = Math.min(1, focus + 0.2);
     emit('kill', { combo: run.combo, total });
     // last one in the room: kill cam
-    if (mode !== 'menu' && enemies.every(o => !o.alive)) {
-      doorOpen = true; clearT = 0;
+    if (mode !== 'menu' && enemies.every(o => !o.alive) && ambushes.every(a => a.state === 'done' || a.state === 'skip')) {
+      clearT = 0;
       slowMo(1.1, 0.16);
       cam.focus = { x: c.x, y: c.y }; cam.focusT = 0.9;
       setTimeout(() => { Sfx.clear(); Sfx.door(); }, 250);
@@ -1025,7 +1088,7 @@ const Game = (() => {
     if (player.alive) { const d = dist(player.x, player.y - 46, x, y); if (d < R - 25) { const a = Math.atan2(player.y - 46 - y, player.x - x); killPlayer(Math.cos(a) * 1000, Math.sin(a) * 1000 - 500, null, J.PELVIS); } }
     for (const cb of corpses) pushRadial(cb.pts, x, y, R + 40, 1300);
     for (const pc of pieces) Rigid.blast(pc, x, y, R + 70, 1300);
-    for (const c of crates) Rigid.blast(c, x, y, R + 50, 950);
+    for (const c of crates) { Rigid.blast(c, x, y, R + 50, 950); if (dist(c.x, c.y, x, y) < R) smashCrate(c, c.x - x, c.y - y); }
     for (const g of panes) if (!g.broken && Math.abs(g.x - x) < R && y > g.y - 40 && y < g.y + g.h + 40) breakPane(g, g.x - x);
     for (const o of barrels) if (!o.gone && dist(o.x, o.y - 20, x, y) < R + 30) { if (o.fuse < 0) lightBarrel(o, byPlayer); o.fuse = Math.min(o.fuse, 0.12); }
     for (const g of pickups) { g.vx += (g.x - x) * 4; g.vy -= 400; }
@@ -1099,12 +1162,19 @@ const Game = (() => {
   }
 
   let doorAnim = 0;
-  function doorState() {
+  // the swing is purely visual: it eases open over ~1.4s as you approach, but walking into the
+  // frame always takes you through immediately
+  let doorNear = false;
+  function updateDoor(dt) {
     const d = room.door;
-    if (!d) return null;
-    const near = player && Math.abs(player.x - d.x) < 230 && Math.abs(player.y - d.y) < 160;
-    doorAnim = approach(doorAnim, doorOpen && (near || (fade && fade.phase === 'out')) ? 1 : 0, 0.06);
-    return { open: doorOpen, anim: easeOut(doorAnim), left: enemies.filter(e => e.alive).length, near };
+    if (!d || !player) return;
+    doorNear = Math.abs(player.x - d.x) < 260 && Math.abs(player.y - d.y) < 170;
+    const target = doorNear || (fade && fade.phase === 'out') ? 1 : 0;
+    doorAnim = approach(doorAnim, target, dt / (target ? 1.4 : 0.9));
+  }
+  function doorState() {
+    if (!room.door) return null;
+    return { open: true, anim: easeInOut(doorAnim), left: 0, near: doorNear };
   }
   function restartRoom() {
     if (fade) return;
@@ -1296,53 +1366,40 @@ const Game = (() => {
     drawCrateFace(ctx, c.L, mat);
     ctx.restore();
   }
+  // matte, minimal drum: two flat tones for the roundness, thin ribs, a lid and one white mark
   function drawBarrel(br) {
     const w = br.w, h = br.h;
     const lit = br.fuse >= 0 ? 1 - br.fuse / 0.34 : 0;
     const jx = lit ? rand(-1.6, 1.6) * lit : 0;
     const x0 = br.x - w / 2 + jx, y0 = br.y - h, cx = br.x + jx;
-    // depth: a darker copy pushed toward the vanishing point reads as the drum's far side
+    const dark = room.theme.dark;
+    const base = dark ? '#d8692e' : '#ee7a3a', side = dark ? '#b8552a' : '#d6662c', rib = dark ? '#a24a24' : '#c45a28', lid = dark ? '#e88a52' : '#f59a62';
+    // far side, pushed toward the vanishing point
     const V = View.V, kz = View.k(ZP + 0.13) - 1;
     const ox = (cx - V.x) * kz, oy = (y0 + h / 2 - V.y) * kz;
-    ctx.fillStyle = '#7a2d10';
-    ctx.beginPath(); ctx.roundRect(x0 + ox, y0 + oy, w, h, 5); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cx + ox, y0 + oy + 1, w / 2, 4.5, 0, 0, TAU); ctx.fill();
-    // body: a lit cylinder
-    const g = ctx.createLinearGradient(x0, 0, x0 + w, 0);
-    g.addColorStop(0, '#9c3a14'); g.addColorStop(0.18, '#e86b2c'); g.addColorStop(0.34, '#ffb37a'); g.addColorStop(0.5, '#ff8a3d'); g.addColorStop(0.82, '#c9541f'); g.addColorStop(1, '#7f2e0f');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 5); ctx.fill();
+    ctx.fillStyle = shade(side, -0.2);
+    ctx.beginPath(); ctx.roundRect(x0 + ox, y0 + oy, w, h, 4); ctx.fill();
+    // body: flat light half and flat shaded half
+    ctx.fillStyle = base; ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 4); ctx.fill();
+    ctx.fillStyle = side; ctx.beginPath(); ctx.roundRect(x0 + w * 0.62, y0, w * 0.38, h, [0, 4, 4, 0]); ctx.fill();
     // ribs
-    for (const ry of [y0 + 10, y0 + h - 9]) {
-      ctx.strokeStyle = 'rgba(70,20,5,0.55)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.ellipse(cx, ry, w / 2 - 0.5, 3, 0, 0.1, Math.PI - 0.1); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,220,180,0.55)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.ellipse(cx, ry - 2, w / 2 - 1, 3, 0, 0.15, Math.PI - 0.15); ctx.stroke();
-    }
-    // hazard label
-    const ly = y0 + 15, lh = h - 28;
-    ctx.fillStyle = '#f4efe6'; ctx.beginPath(); ctx.roundRect(x0 + 5, ly, w - 10, lh, 2); ctx.fill();
-    ctx.fillStyle = '#ffd34d';
-    ctx.beginPath(); ctx.moveTo(cx, ly + 1.5); ctx.lineTo(cx + 6, ly + lh - 1.5); ctx.lineTo(cx - 6, ly + lh - 1.5); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = '#1d2130'; ctx.lineWidth = 1.1; ctx.stroke();
-    ctx.fillStyle = '#e2434b';
-    ctx.beginPath(); ctx.moveTo(cx, ly + 4); ctx.quadraticCurveTo(cx + 3.5, ly + lh - 4, cx, ly + lh - 3); ctx.quadraticCurveTo(cx - 3.5, ly + lh - 4, cx, ly + 4); ctx.fill();
+    ctx.fillStyle = rib;
+    ctx.fillRect(x0, y0 + 11, w, 2); ctx.fillRect(x0, y0 + h - 12, w, 2);
     // lid
-    ctx.fillStyle = '#d0632a';
-    ctx.beginPath(); ctx.ellipse(cx, y0 + 1, w / 2, 4.5, 0, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,210,170,0.7)'; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.ellipse(cx, y0 + 1, w / 2 - 3, 2.8, 0, 0, TAU); ctx.stroke();
-    ctx.fillStyle = '#5a2410'; ctx.fillRect(cx + 4, y0 - 2, 5, 3);
-    // specular stripe
-    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(x0 + w * 0.26, y0 + 5, 2.5, h - 10);
-    const pulse = 0.5 + 0.5 * Math.sin(clock * 5 + br.seed);
+    ctx.fillStyle = lid; ctx.beginPath(); ctx.ellipse(cx, y0 + 1, w / 2, 3.5, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = rib; ctx.fillRect(cx + 5, y0 - 1.5, 4, 2.5);
+    // one clean white flame mark
+    const my = y0 + h / 2 + 0.5;
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.beginPath(); ctx.moveTo(cx - 1, my - 7); ctx.quadraticCurveTo(cx + 6, my - 1, cx + 3, my + 5); ctx.quadraticCurveTo(cx - 1, my + 7.5, cx - 5, my + 4); ctx.quadraticCurveTo(cx - 6, my - 1, cx - 1, my - 7); ctx.fill();
+    ctx.fillStyle = base;
+    ctx.beginPath(); ctx.moveTo(cx - 0.5, my - 0.5); ctx.quadraticCurveTo(cx + 2.5, my + 2.5, cx + 0.5, my + 5); ctx.quadraticCurveTo(cx - 2.5, my + 4.5, cx - 2, my + 2); ctx.closePath(); ctx.fill();
     if (lit) {
-      // fuse lit: blink hot, spit sparks
-      ctx.fillStyle = `rgba(255,255,255,${(Math.sin(clock * 60) > 0 ? 0.55 : 0.15) * lit + 0.1})`;
-      ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 5); ctx.fill();
-      Glow.draw(ctx, '#ff6a3d', cx, y0 + h / 2, 40 + 30 * lit, 0.4 + 0.4 * lit);
-      Glow.draw(ctx, '#fff2b0', cx + 6, y0 - 2, 10 + 6 * Math.random(), 0.9);
-    } else Glow.draw(ctx, '#ff8a3d', cx, br.y - 6, 30, 0.1 + pulse * 0.08);
+      ctx.fillStyle = `rgba(255,255,255,${(Math.sin(clock * 60) > 0 ? 0.55 : 0.12) * lit + 0.08})`;
+      ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 4); ctx.fill();
+      Glow.draw(ctx, '#ff6a3d', cx, y0 + h / 2, 36 + 26 * lit, 0.35 + 0.35 * lit);
+      Glow.draw(ctx, '#fff2b0', cx + 7, y0 - 2, 9 + 5 * Math.random(), 0.9);
+    }
   }
   function drawPickup(g) {
     if (g.empty && g.t > 0.5) ctx.globalAlpha = 0.5;

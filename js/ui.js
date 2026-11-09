@@ -271,7 +271,7 @@ const UI = (() => {
     $('focusFill').style.transform = `scaleX(${Game.focus.toFixed(3)})`;
     f.classList.toggle('on', Game.slowOn);
     const tsl = document.querySelector('.tb-slow');
-    if (tsl) tsl.classList.toggle('on', Game.slowOn);
+    if (tsl) { tsl.classList.toggle('on', Game.slowOn); tsl.style.setProperty('--f', Game.focus.toFixed(3)); }
     // combo
     const c = $('combo');
     if (run.combo > 1 && run.comboT > 0) {

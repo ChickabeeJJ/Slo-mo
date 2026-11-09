@@ -36,7 +36,8 @@
   window.addEventListener('keydown', e => {
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
     Sfx.ensure();
-    if (e.code === 'KeyP' || e.code === 'Escape') {
+    // P pauses (Escape is left to the browser for leaving fullscreen)
+    if (e.code === 'KeyP') {
       if (UI.screen !== null) return;
       if (UI.modalOpen() && UI.modalKind === 'pause') UI.resume();
       else if (!UI.modalOpen()) UI.openPause();

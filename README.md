@@ -8,10 +8,11 @@ To play, serve the folder (for example `python3 -m http.server`) and open `index
 
 ## The game
 
-- **Rooms and doors.** A level is a chain of 3–4 rooms. Each exit door has a lamp: red while anyone in the room is alive, with an "N LEFT" counter when you get close. Once the room is clear the lamp turns green, an EXIT sign pulses, and the door swings open as you approach. Anywhere across the door frame counts, even mid-jump. Dying restarts the room, not the level.
+- **Rooms and doors.** A level is a chain of rooms. The exit door is always open, so clearing the room is optional and only worth points. The door slowly swings open as you approach (that's only the animation: walking into the frame always takes you through straight away). Dying restarts the room, not the level.
+- **Ambushes.** Pass a certain point and an enemy bursts out of a side door or drops from a ceiling hatch. It's kept fair: an alarm sounds and the door flashes red for ¾ s first, the enemy always appears well ahead of you (never behind or right on top of you), and it takes extra time before its first shot.
 - **Slow motion.** **Q** toggles bullet time. It drains a meter, and every kill refills some of it. The world drops to about a quarter speed while you keep about two thirds, so you can out-run bullets. The mix goes muffled, the music's tempo drags and a heartbeat plays. Slow motion also kicks in on its own for close calls, glass breaking, explosions and the **kill cam** on the last enemy in a room.
 - **Movement.** Hold **Shift** to sprint. Pressing **Shift** while moving also starts a slide, and you keep sprinting when the slide ends. **Right click**, **S** or **C** also slide. Sliding lowers your hitbox under chest-high bullets and gets you through low vents (two tiles tall). Slide in mid-air to dive: you drop low and land straight into a slide, keeping your speed. **Front flip:** jump while sprinting or sliding (any jump at high speed). Sprinting, sliding or jumping into glass shatters it. To drop through a ledge or table, stand still on it and press right click or S.
-- **Physics.** Dead bodies go limp, then break into separate limb blocks. Limb blocks and crates are rigid bodies with mass, spin, friction and bounce: they tip over edges, roll, stack and settle. Crates are cover (bullets thump into them and shove them). You can push them, tip them over by sprinting or sliding into them, and stand on them.
+- **Physics.** Dead bodies go limp, then break into separate limb blocks. Limb blocks and crates are rigid bodies with mass, spin, friction and bounce: they tip over edges, roll, stack and settle. Crates are cover: bullets thump into them and shove them, and four hits smash a crate into loose planks (explosions break them too). You can push them, tip them over by sprinting or sliding into them, and stand on them.
 - **Gunplay.** Every bullet is a visible projectile. Player rounds from every gun fly at the same slow speed (900 px/s), so you have to lead your shots, and fire rates are deliberately slow. Enemy shots are dark slugs with a white wake, and every gunman shows a red sight line before firing, so you can always read a shot. You can **shoot bullets out of the air**. Enemies drop their guns: press **E** to grab one. A grabbed gun has a fixed magazine and gets tossed when it's empty. Enemy bullets can hit other enemies.
 - **Style.** Each kill is worth 100, plus bonuses for HEADSHOT, AIRBORNE, FLIP KILL, SLIDE KILL, BOOM, CROSSFIRE and MULTI KILL. DEFLECT also scores. Chained kills build a combo multiplier, up to x4.
 
@@ -50,7 +51,7 @@ Lowercase map chars face the player's side. UPPERCASE ones face away until they 
 
 ## Progression and retention
 
-- **Campaign:** 75 levels, 15 in each of 5 chapters. Every 5th level is a boss level with a Juggernaut. Stars: **cleared**, **under par time**, **no deaths**. Each chapter builds its rooms differently:
+- **Campaign:** 75 levels, 15 in each of 5 chapters. Every 5th level is a boss level with a Juggernaut. Levels 8 and 13 of each chapter end in a **big map**: a wide, two-storey hall with stairs up to a long deck, a sniper catwalk, a drop back down and the exit across the far floor. Endless throws in a big map every 7th room. Stars: **cleared**, **under par time**, **no deaths**. Each chapter builds its rooms differently:
   - **Orientation:** white lab rooms, wall vents, the tutorial.
   - **Offices:** warm walls, desks with monitors, plants, water coolers, windows with blinds, posters, clocks and lots of glass partitions.
   - **Warehouse:** tall concrete halls, catwalks, pallet stacks, crates, barrels, roller shutters, stencilled bay numbers, hazard stripes and pipes.
@@ -83,9 +84,9 @@ Chapter 1 is handcrafted. The first level recreates the demo's tutorial rooms, w
 | `Q` | Slow time |
 | `R` | Reload (and retry after dying) |
 | `E` | Grab a dropped gun |
-| `P` / `Esc` | Pause |
+| `P` | Pause (Esc is left for leaving fullscreen) |
 
-On touch screens: a floating move stick on the left (push all the way to sprint, flick up to jump, down to slide) and an aim stick on the right. Tap the aim stick to auto-aim and fire at the nearest visible enemy, or drag to aim yourself (with a soft snap you can turn off in Settings). There are JUMP, SLIDE, SLOW and reload buttons, and a GRAB button appears next to dropped guns.
+On touch screens the HUD switches to touch controls, and the painted tutorial text describes them instead of keys. Controls: a floating move stick on the left (push all the way to sprint, flick up to jump, down to slide) and an aim stick on the right. Tap the aim stick to auto-aim and fire at the nearest visible enemy, or drag to aim yourself (with a soft snap you can turn off in Settings). There are JUMP, SLIDE, SLOW and reload buttons around the fire stick, and a GRAB button appears next to dropped guns. The SLOW button's ring doubles as the slow-motion meter.
 
 ## Project layout
 

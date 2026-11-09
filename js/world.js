@@ -41,6 +41,13 @@ class Room {
     this.decals = [];
     this.dyn = [];
     this.parse(map);
+    // ambush spots: [tileX, standingTileRow, type, triggerTileX, 'door' | 'drop']
+    this.ambushDefs = (def.ambush || []).map(([tx, ty, type, trig, kind]) => {
+      const x = tx * TILE + TILE / 2, y = (ty + 1) * TILE;
+      let top = ty;
+      while (top > 0 && !this.collCell(tx * 2, (top - 1) * 2 + 1)) top--;
+      return { x, y, type, trigger: trig * TILE, kind: kind || 'door', dropY: top * TILE + 96 };
+    });
     this.buildFaces();
     this.buildDecor(map);
   }
@@ -584,6 +591,10 @@ class Room {
 
     // doors
     if (this.entry) this.drawDoor(ctx, this.entry, null, t);
+    for (const a of this.ambushState || []) {
+      if (a.kind === 'door') this.drawSideDoor(ctx, a, t);
+      else if (a.kind === 'drop') this.drawHatch(ctx, a, t);
+    }
     if (this.door) this.drawDoor(ctx, this.door, doorOpen, t);
 
     // side faces, farthest first
@@ -598,11 +609,9 @@ class Room {
     }
     vis.sort((a, b) => b.d - a.d);
     const col = { top: th.top, bottom: th.under, left: th.side, right: shade(th.side, th.dark ? 0.05 : -0.04) };
-    const mat = crateMaterial(th);
-    const ccol = { top: shade(mat.base, 0.12), bottom: shade(mat.base, -0.3), left: shade(mat.base, -0.14), right: shade(mat.base, -0.2) };
     for (const f of vis) {
       const a = P(f.x1, f.y1, 1), b = P(f.x2, f.y2, 1);
-      const fc = f.crate ? ccol[f.type] : col[f.type];
+      const fc = col[f.type];
       ctx.fillStyle = fc;
       ctx.strokeStyle = fc;
       ctx.lineWidth = 1;
@@ -680,6 +689,30 @@ class Room {
       ctx.font = '900 ' + (12 * k).toFixed(1) + 'px Rubik, sans-serif';
       ctx.fillText(st.left + ' LEFT', lx, ly - 15 * k);
     }
+  }
+
+  // a plain service door that bursts open when its ambusher comes through; it blinks red first
+  drawSideDoor(ctx, a, t) {
+    const th = this.theme, z = 0.95, k = View.k(z);
+    const x = View.px(a.x - 21, z), y = View.py(a.y - 98, z), W = 42 * k, H = 98 * k;
+    ctx.fillStyle = shade(th.back, th.dark ? 0.06 : -0.08); ctx.fillRect(x - 3 * k, y - 3 * k, W + 6 * k, H + 3 * k);
+    const o = easeOut(a.anim || 0);
+    if (o > 0.01) { ctx.fillStyle = th.dark ? '#07080b' : '#2a2d36'; ctx.fillRect(x, y, W, H); }
+    ctx.fillStyle = shade(th.door, th.dark ? 0.1 : 0.25);
+    const pw = W * (1 - o * 0.85);
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + pw, y + o * 5 * k); ctx.lineTo(x + pw, y + H - o * 5 * k); ctx.lineTo(x, y + H); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(x + pw - 9 * k, y + 48 * k, 4 * k, 3 * k);
+    if (a.state === 'warn') {
+      const on = Math.sin(t * 28) > 0;
+      Glow.draw(ctx, '#ff3344', x + W / 2, y - 8 * k, 26 * k, on ? 0.9 : 0.3);
+      ctx.fillStyle = on ? '#ff3344' : '#7a1d26'; ctx.fillRect(x + W / 2 - 7 * k, y - 11 * k, 14 * k, 5 * k);
+    }
+  }
+  drawHatch(ctx, a, t) {
+    if (a.state !== 'warn' && a.state !== 'done') return;
+    const k = View.k(0.6), x = View.px(a.x - 24, 0.6), y = View.py(a.dropY - 96 - 2, 0.6);
+    ctx.fillStyle = 'rgba(20,22,30,0.85)'; ctx.fillRect(x, y, 48 * k, 6 * k);
+    if (a.state === 'warn') Glow.draw(ctx, '#ff3344', x + 24 * k, y + 6 * k, 30 * k, Math.sin(t * 28) > 0 ? 0.8 : 0.25);
   }
 
   drawProp(ctx, p) {
@@ -765,12 +798,12 @@ class Room {
     for (const f of this.faces) { ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); }
     for (const s of this.slopes) { if (s.kind === 'a') { ctx.moveTo(s.x, s.y + TILE); ctx.lineTo(s.x + TILE, s.y); } else { ctx.moveTo(s.x, s.y); ctx.lineTo(s.x + TILE, s.y + TILE); } }
     ctx.stroke();
-    // crate blocks
-    const mat = crateMaterial(th);
+    // crate blocks: plain white cubes with a stencilled X, same as the walls
     for (const c of this.crateTiles) {
-      ctx.save(); ctx.translate(c.x + TILE / 2, c.y + TILE / 2);
-      drawCrateFace(ctx, TILE, mat);
-      ctx.restore();
+      ctx.strokeStyle = th.dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(c.x + 4, c.y + 4, TILE - 8, TILE - 8);
+      ctx.beginPath(); ctx.moveTo(c.x + 4, c.y + TILE - 4); ctx.lineTo(c.x + TILE - 4, c.y + 4); ctx.stroke();
     }
   }
 }

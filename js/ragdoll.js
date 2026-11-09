@@ -11,15 +11,15 @@ const J = { HEAD: 0, NECK: 1, PELVIS: 2, FELB: 3, FHAND: 4, BELB: 5, BHAND: 6, F
 const LEN = { thigh: 22, shin: 22, upper: 16, fore: 16, torso: 34, neck: 13 };
 // sticks: [a, b, length, thickness, depth, role]
 const STICKS = [
-  [J.NECK, J.PELVIS, LEN.torso, 22, 0.075, 'torso'],
-  [J.NECK, J.HEAD, LEN.neck, 20, 0.07, 'head'],
-  [J.NECK, J.BELB, LEN.upper, 9, 0.045, 'barm'], [J.BELB, J.BHAND, LEN.fore, 8, 0.045, 'barm'],
-  [J.PELVIS, J.BKNEE, LEN.thigh, 11, 0.05, 'bleg'], [J.BKNEE, J.BFOOT, LEN.shin, 10, 0.05, 'bleg'],
-  [J.PELVIS, J.FKNEE, LEN.thigh, 11, 0.05, 'fleg'], [J.FKNEE, J.FFOOT, LEN.shin, 10, 0.05, 'fleg'],
-  [J.NECK, J.FELB, LEN.upper, 9, 0.045, 'farm'], [J.FELB, J.FHAND, LEN.fore, 8, 0.045, 'farm'],
+  [J.NECK, J.PELVIS, LEN.torso, 18, 0.062, 'torso'],
+  [J.NECK, J.HEAD, LEN.neck, 17, 0.06, 'head'],
+  [J.NECK, J.BELB, LEN.upper, 8, 0.04, 'barm'], [J.BELB, J.BHAND, LEN.fore, 7, 0.04, 'barm'],
+  [J.PELVIS, J.BKNEE, LEN.thigh, 10, 0.045, 'bleg'], [J.BKNEE, J.BFOOT, LEN.shin, 9, 0.045, 'bleg'],
+  [J.PELVIS, J.FKNEE, LEN.thigh, 10, 0.045, 'fleg'], [J.FKNEE, J.FFOOT, LEN.shin, 9, 0.045, 'fleg'],
+  [J.NECK, J.FELB, LEN.upper, 8, 0.04, 'farm'], [J.FELB, J.FHAND, LEN.fore, 7, 0.04, 'farm'],
 ];
 const DRAW_ORDER = [2, 3, 4, 5, 0, 1, 6, 7, 8, 9];
-const GRAV = 2300;
+const GRAV = 3000;               // bodies are heavy: they drop hard and don't float
 
 function ik(ax, ay, bx, by, l1, l2, bend) {
   let dx = bx - ax, dy = by - ay;
@@ -66,7 +66,9 @@ class Body {
     if (st.grounded) this.fallV = 0;
     this.wasAir = !st.grounded;
     this.land = Math.max(0, (this.land || 0) - dt * 4.5);
-    if (st.grounded && !st.slide) this.phase += speed * dt / (st.sprint ? 17 : 14);
+    // phase rate matches stride length so planted feet never skate
+    const strideLen = (12 + (st.sprint ? 12 : 0)) * clamp(speed / 170, 0.4, 1) * (mf < 0 ? 0.7 : 1);
+    if (st.grounded && !st.slide) this.phase += speed * dt / Math.max(8, strideLen);
     const T = this.T;
     const set = (i, x, y) => { T[i].x = x; T[i].y = y; };
     const run = st.grounded && !st.slide ? clamp(speed / 170, 0, 1) : 0;
@@ -91,11 +93,14 @@ class Body {
       const ph = this.phase;
       const back = mf < 0 ? 0.7 : 1;
       const dip = this.land * 10;
-      pel = [this.leanS * 0.25 + (1 - run) * Math.sin(this.t * 0.9) * 1.1, -44 + Math.abs(Math.sin(ph)) * 3.2 * run + dip + (1 - run) * Math.sin(this.t * 2.2) * 0.7];
-      const lean = this.leanS + this.land * 5;
-      neck = [pel[0] + lean, pel[1] - LEN.torso + Math.abs(lean) * 0.18 + Math.cos(ph * 2) * 0.8 * run];
-      const stride = (13 + sprint * 11) * run * back;
-      const lift = (8 + sprint * 8) * run * back;
+      // contact frames sink the hips, passing frames lift them; the chest trails the hips slightly
+      const bob = Math.abs(Math.sin(ph)) * (sprint ? 3.6 : 2.6) * run;
+      const sway = Math.sin(ph) * 1.2 * run;
+      pel = [this.leanS * 0.25 + sway + (1 - run) * Math.sin(this.t * 0.9) * 1.1, -44 + bob + dip + (1 - run) * Math.sin(this.t * 2.2) * 0.7];
+      const lean = this.leanS + this.land * 5 + (sprint ? 0 : 1.5 * run * mf);
+      neck = [pel[0] + lean - sway * 0.5, pel[1] - LEN.torso + Math.abs(lean) * 0.18 + Math.cos(ph * 2) * 1.1 * run];
+      const stride = (12 + sprint * 12) * run * back;
+      const lift = (9 + sprint * 8) * run * back;
       const legAt = p => {
         const sw = Math.cos(p);                                   // >0 swing forward, <0 planted and pushing
         return [Math.sin(p) * stride * mf, -Math.max(0, sw) * lift - Math.max(0, -Math.sin(p) * mf) * sw * 0];
@@ -220,7 +225,7 @@ class Body {
     while (this.acc >= h && n < 8) {
       this.acc -= h; n++;
       for (const p of this.pts) {
-        const vx = (p.x - p.px) * 0.995, vy = (p.y - p.py) * 0.995;
+        const vx = (p.x - p.px) * 0.998, vy = (p.y - p.py) * 0.998;
         p.px = p.x; p.py = p.y;
         p.x += vx; p.y += vy + GRAV * h * h;
       }
@@ -295,6 +300,7 @@ class Body {
   }
   draw(ctx) {
     if (this.broken) return;
+    if (this.alpha != null && this.alpha < 1) { ctx.save(); ctx.globalAlpha = Math.max(0, this.alpha); this.alpha = null; this.draw(ctx); this.alpha = ctx.globalAlpha; ctx.restore(); return; }
     const base = this.tint();
     const dark = mixHex(this.rainbow ? shade(base, -0.2) : this.dark, shade(this.deadColor, -0.12), this.whiteT);
     const f = this.facing;
@@ -306,11 +312,22 @@ class Body {
       const col = back ? dark : base;
       if (st[5] === 'head') drawHead(ctx, a, b, st[3] * this.s, col, this, f);
       else limb(ctx, a.x, a.y, b.x, b.y, st[3] * this.s, st[4], col, st[5] === 'torso' ? 1.4 : 1);
+      if (si === 5 || si === 7) drawFoot(ctx, a, b, f, this.s, shade(col, -0.08), st[4]);
       // the gun sits in the hands, between the arms
       if (si === 4 && this.gunId && !this.dead && this.dual) drawGun(ctx, this.pts[J.BHAND], this.gunAng2 != null && this.dual ? this.gunAng2 : this.gunAng, this.gunId, this.dual);
       if (si === 9 && this.gunId && !this.dead) drawGun(ctx, this.pts[J.FHAND], this.gunAng, this.gunId, false);
     }
   }
+}
+
+// a small shoe block at the end of each shin: flat when planted, toe dips while the leg swings
+function drawFoot(ctx, knee, foot, f, s, col, dz) {
+  const sa = Math.atan2(foot.y - knee.y, foot.x - knee.x);
+  const tilt = clamp((sa - Math.PI / 2) * 0.75, -0.9, 0.9);
+  const c = Math.cos(tilt), sn = Math.sin(tilt);
+  const P = (u, v) => [foot.x + (c * u - sn * v) * s, foot.y + (sn * u + c * v) * s];
+  const h0 = -3, t0 = 10 * f;
+  prism(ctx, [P(-3 * f, h0), P(t0, h0), P(t0, 2), P(-3 * f, 2)].map(([x, y]) => [x, y]), ZP - dz, ZP + dz, col, shade(col, 0.16), shade(col, -0.14), shade(col, -0.24));
 }
 
 function hsl(h, s, l) {
@@ -540,8 +557,8 @@ function makePiece(a, b, st, body, vx, vy) {
   const spin = ((vb[1] - va[1]) * ux - (vb[0] - va[0]) * uy) / len;
   const pc = Rigid.make({
     x: (ax + bx) / 2, y: (ay + by) / 2, a: ang, L, T,
-    vx: (va[0] + vb[0]) / 2 + vx + rand(-50, 50), vy: (va[1] + vb[1]) / 2 + vy + rand(-60, 0), w: clamp(spin, -25, 25) + rand(-3, 3),
-    density: role === 'torso' ? 1.2 : 1, e: 0.22, mu: 0.6,
+    vx: (va[0] + vb[0]) / 2 + vx + rand(-25, 25), vy: (va[1] + vb[1]) / 2 + vy + rand(-30, 0), w: clamp(spin, -18, 18) + rand(-1.5, 1.5),
+    density: role === 'torso' ? 1.8 : role === 'head' ? 1.5 : 1.2, e: 0.08, mu: 0.8,
   });
   return Object.assign(pc, {
     dz: st[4], color: body.tint(), target: body.deadColor, whiteT: body.whiteT, head: isHead,
