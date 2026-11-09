@@ -304,7 +304,8 @@ body.touch .tbtns { display: block; position: absolute; right: calc(20px + var(-
 .tb-slow.on { transform: none; background: conic-gradient(#ffffff calc(var(--f, 1) * 360deg), rgba(255, 255, 255, 0.12) 0); }
 .tb-slow.on::before { background: #7fb0e2; }
 .tb-slow.on .ic, .tb-slow.on small { color: #0c1220; }
-.tb-reload { right: calc(var(--tb) * 1.25 + var(--gap) + var(--tb) * 0.13); bottom: calc(var(--tb) * 1.25 + var(--gap) + var(--tb) * 0.13); width: calc(var(--tb) * 0.74); height: calc(var(--tb) * 0.74); }
+/* reload tucks into the corner between SLIDE and SLOW, one --gap from each */
+.tb-reload { right: calc(var(--tb) * 1.03 + var(--gap)); bottom: calc(var(--tb) * 0.93 + var(--gap)); width: calc(var(--tb) * 0.74); height: calc(var(--tb) * 0.74); }
 .tb-grab { right: 0; bottom: calc(var(--tb) * 2.25 + var(--gap) * 2); width: calc(var(--tb) * 1.25); height: calc(var(--tb) * 0.56); border-radius: 8px; background: var(--acc); border-color: var(--acc); color: var(--acc-ink); }
 
 /* ---------------------------------------------------------------- modal */
