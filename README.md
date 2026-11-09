@@ -1,6 +1,6 @@
 # Slo-Mo
 
-A 2D slow-motion ragdoll shootout, built as the web version of the Roblox demo. You are the blue figure: sprint, slide and flip through white cut-away rooms, bend time with **Q** and drop the red gunmen. Everything is one hit, for you and for them (except the armoured Juggernaut). Bodies go limp, drain to white and break into blocks.
+A 2D slow-motion ragdoll shootout, built as the web version of the Roblox demo. You are the blue figure: sprint, slide and flip through white cut-away rooms, bend time with **Q** and drop the red gunmen. Everything is one hit, for you and for them (except the big Juggernaut and Brute, which take two). Bodies go limp, drain to white and break into blocks.
 
 It's pure HTML5 and vanilla JS, with no build step and no dependencies. It has the same structure as Element Rag: all art is drawn procedurally, every sound is synthesized, and the CrazyGames SDK v3 is wrapped in `js/platform.js`.
 
