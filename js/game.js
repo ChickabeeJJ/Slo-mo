@@ -418,14 +418,14 @@ const Game = (() => {
     const wantSlide = pressed.has('slide') || (pressed.has('shiftSlide') && (Math.abs(p.vx) > 140 || !p.grounded));
     if (wantSlide) {
       if (p.grounded && p.plat && Math.abs(p.vx) < 60 && Math.abs(mx) < 0.1 && pressed.has('slide')) { p.dropPlat = p.plat; p.dropT = 0.3; p.grounded = false; p.y += 2; }
-      else if (!p.grounded && !p.airSlide && !p.crawl) {
+      else if (!p.grounded && p.airT > 0.06 && !p.airSlide && !p.crawl) {
         p.airSlide = true; p.flipping = false; p.flip = 0;
         p.slideDir = Math.abs(mx) > 0.1 ? Math.sign(mx) : Math.abs(p.vx) > 40 ? Math.sign(p.vx) : p.facing;
         p.vx = p.slideDir * Math.max(Math.abs(p.vx), 330);
         p.vy = Math.max(p.vy, 0) + 260;
         p.h = SLIDE_H;
         Sfx.slide();
-      } else if (p.grounded && p.slideT <= 0 && !p.crawl) startSlide(p, mx);
+      } else if ((p.grounded || p.airT <= 0.06) && p.slideT <= 0 && !p.crawl && !p.airSlide) startSlide(p, mx);
     }
     // a slide carries its speed and bleeds it off with floor friction, then you stand back up.
     // Under a low ceiling you keep shuffling forward until there's room to stand.
@@ -460,6 +460,7 @@ const Game = (() => {
 
     // ---- jump
     const headroom = room.canStand(p, STAND_H, panes);
+    if (p.jumpBuf > 0 && p.crawl && headroom) tryStand(p, true);
     if (p.jumpBuf > 0 && (p.grounded || p.coyote > 0) && !p.crawl && !p.airSlide && headroom) {
       p.jumpBuf = 0; p.coyote = 0;
       p.vy = -JUMP_V;
@@ -490,7 +491,7 @@ const Game = (() => {
     p.noStep = sliding;                         // a slide never climbs a step: it stops against it
     const out = room.moveBody(p, dt, panes);
     if (out.wall && p.slideT > 0) { p.slideT = 0; p.vx = 0; if (!tryStand(p)) p.crawl = true; }
-    if (out.landed && wasAir && p.airSlide) {
+    if (p.grounded && p.airSlide) {
       p.airSlide = false;
       startSlide(p, p.slideDir);
       p.vx = p.slideDir * Math.max(Math.abs(p.vx), Math.abs(fallVx) * 1.05, SLIDE_V);
@@ -500,6 +501,7 @@ const Game = (() => {
       if (p.flipping) { p.flipping = false; p.flip = 0; }
     }
     if (!p.grounded) p.airT += dt; else p.airT = 0;
+    unstick(p, dt);
     if (p.flipping) {
       p.flip += dt * 12.5;
       if (p.flip >= TAU) { p.flip = 0; p.flipping = false; }
@@ -595,11 +597,36 @@ const Game = (() => {
     if (p.invuln > 0) p.invuln -= dt;
   }
 
+  // Safety net for every slide state. A slide or crawl that hasn't ended by itself gets ended:
+  // a crawl with room to stand stands up, and anything stuck low for too long (or not moving)
+  // finds the nearest reachable spot with headroom and stands there.
+  function unstick(p, dt) {
+    if (p.airSlide && p.grounded) { p.airSlide = false; startSlide(p, p.slideDir); }
+    if (p.slideT > 4) p.slideT = 1.3;
+    const low = p.slideT > 0 || p.crawl || p.h !== STAND_H;
+    if (!low || !p.grounded) { p.lowT = 0; p.lowStill = 0; return; }
+    p.lowT = (p.lowT || 0) + dt;
+    p.lowStill = Math.abs(p.x - (p.lowX ?? p.x)) < 1 ? (p.lowStill || 0) + dt : 0;
+    p.lowX = p.x;
+    if (!(p.slideT > 0) && !p.crawl && p.h !== STAND_H) { if (!tryStand(p)) p.crawl = true; }
+    if (p.lowT > 2.5 || p.lowStill > 0.6) {
+      for (let d = 0; d <= 160; d += 4) for (const sgn of [p.slideDir || 1, -(p.slideDir || 1)]) {
+        const x = p.x + sgn * d;
+        if (room.canStand({ x, y: p.y, w: p.w }, STAND_H, panes) && room.los(p.x, p.y - 12, x, p.y - 12)) {
+          p.x = x; p.h = STAND_H; p.crawl = false; p.slideT = 0; p.airSlide = false; p.lowT = 0; p.lowStill = 0;
+          return;
+        }
+      }
+      p.lowT = 0; p.lowStill = 0;
+      p.slideDir = -(p.slideDir || 1);
+    }
+  }
+
   // stand up if there's headroom here, or a few pixels to either side (so you can't get wedged)
   function tryStand(p, here) {
     for (const dx of here ? [0] : [0, -4, 4, -8, 8, -12, 12, -16, 16]) {
       const t = { x: p.x + dx, y: p.y, w: p.w };
-      if (room.canStand(t, STAND_H, panes) && !room.boxHit(t.x - p.w / 2, p.y - SLIDE_H, t.x + p.w / 2, p.y - 1, panes)) {
+      if (room.canStand(t, STAND_H, panes) && (dx === 0 || room.los(p.x, p.y - 14, t.x, p.y - 14))) {
         p.x = t.x; p.h = STAND_H; p.crawl = false; p.slideT = 0;
         return true;
       }
