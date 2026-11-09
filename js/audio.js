@@ -128,7 +128,14 @@ const Sfx = (() => {
   function hurtPlayer() { if (!ensure()) return; tone(160, 0.5, 'sawtooth', 0.12, 0.4); noise(0.4, 0.4, 600, 'lowpass', 1, 0, 0.3); }
   function swing() { if (!ensure()) return; noise(0.16, 0.28, 2200, 'bandpass', 1.5, 0, 0.45); }
   function glass() { if (!ensure()) return; for (let i = 0; i < 9; i++) tone(rand(2500, 6200), rand(0.08, 0.3), 'sine', 0.05, rand(0.8, 1.1), i * 0.022); noise(0.35, 0.35, 5000, 'highpass', 0.8); }
-  function boom() { if (!ensure()) return; noise(1.1, 0.9, 900, 'lowpass', 0.8, 0, 0.12); tone(55, 0.9, 'sine', 0.75, 0.35); noise(0.2, 0.5, 3000, 'bandpass', 0.6); }
+  function boom() {
+    if (!ensure()) return;
+    noise(0.08, 0.9, 6000, 'highpass', 0.7);                         // crack
+    noise(1.4, 0.95, 1100, 'lowpass', 0.8, 0, 0.08);                 // body
+    tone(62, 1.1, 'sine', 0.85, 0.3); tone(38, 1.3, 'sine', 0.6, 0.6, 0.03);   // sub thump
+    for (let i = 0; i < 7; i++) noise(0.06, 0.18, rand(1500, 4000), 'bandpass', 3, 0.12 + i * rand(0.05, 0.12));   // debris rattle
+  }
+  function beep(k) { if (!ensure()) return; tone(1500 + k * 900, 0.05, 'square', 0.035, 1); }
   function crate() { if (!ensure()) return; noise(0.1, 0.25, 900, 'bandpass', 2); tone(rand(140, 200), 0.08, 'triangle', 0.12, 0.7); }
 
   /* ------------------------------------------------------------ player */
@@ -231,7 +238,7 @@ const Sfx = (() => {
   function suspend(s) { if (ac) s ? ac.suspend() : ac.resume(); }
 
   return {
-    ensure, shot, enemyShot, spin, charged, split, fuse, alarm, smash, growl, dry, reload, shell, whiz, ricochet, wallHit, deflect, laser, hit, armor, crumble, thud, hurtPlayer, swing,
+    ensure, shot, enemyShot, spin, charged, split, fuse, alarm, smash, growl, beep, dry, reload, shell, whiz, ricochet, wallHit, deflect, laser, hit, armor, crumble, thud, hurtPlayer, swing,
     glass, boom, crate, step, jump, land, slide, flip, slowIn, slowOut, heartbeat, door, clear, click, coin, star, combo, win, lose,
     unlock, denied, setTime, setIntensity, setSfx, setMusic, setMusicPaused, setAdMuted, setPlatformMute, suspend,
   };

@@ -770,13 +770,6 @@ class Room {
     for (const f of this.faces) { ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); }
     for (const s of this.slopes) { if (s.kind === 'a') { ctx.moveTo(s.x, s.y + TILE); ctx.lineTo(s.x + TILE, s.y); } else { ctx.moveTo(s.x, s.y); ctx.lineTo(s.x + TILE, s.y + TILE); } }
     ctx.stroke();
-    // crate blocks: plain white cubes with a stencilled X, same as the walls
-    for (const c of this.crateTiles) {
-      ctx.strokeStyle = th.dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(c.x + 4, c.y + 4, TILE - 8, TILE - 8);
-      ctx.beginPath(); ctx.moveTo(c.x + 4, c.y + TILE - 4); ctx.lineTo(c.x + TILE - 4, c.y + 4); ctx.stroke();
-    }
   }
 }
 

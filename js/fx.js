@@ -46,6 +46,31 @@ const Fx = (() => {
   }
   function trail(x, y, col) { add({ k: 'dust', x, y, vx: rand(-15, 15), vy: rand(-30, -5), life: 0.35, t: 0, col, r: rand(3, 6), g: 0 }); }
 
+  // A layered, toon-style blast that reads on white rooms: a white flash core, solid fireball puffs
+  // cooling from white to yellow to orange to soot, two shockwave rings, a dust wave along the floor,
+  // hot debris streaks, drifting embers and a slow smoke column.
+  function explosion(x, y, R, groundY) {
+    add({ k: 'flash', x, y, life: 0.16, t: 0, r: R * 1.1 });
+    for (let i = 0; i < 16; i++) {
+      const a = rand(0, TAU), d = rand(0, R * 0.38);
+      add({ k: 'puff', x: x + Math.cos(a) * d * 0.4, y: y + Math.sin(a) * d * 0.3, vx: Math.cos(a) * d * 3.2, vy: Math.sin(a) * d * 2.4 - rand(40, 160), life: rand(0.45, 0.8), t: rand(-0.06, 0), r: rand(0.16, 0.3) * R, g: -120 });
+    }
+    rings.push({ x, y, r: R * 1.15, col: '#ffffff', w: 14, t: 0, life: 0.32, edge: true });
+    rings.push({ x, y, r: R * 1.5, col: '#ffb347', w: 5, t: -0.06, life: 0.5 });
+    for (let i = 0; i < 26; i++) {
+      const a = rand(-Math.PI, 0) + (Math.random() < 0.25 ? Math.PI : 0), v = rand(350, 950);
+      add({ k: 'spark', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.25, 0.6), t: 0, col: Math.random() < 0.5 ? '#ffd27a' : '#ff8a3d', g: 1100, w: rand(1.6, 3) });
+    }
+    for (let i = 0; i < 18; i++) add({ k: 'ember', x: x + rand(-R * 0.4, R * 0.4), y: y + rand(-R * 0.3, R * 0.2), vx: rand(-60, 60), vy: rand(-160, -40), life: rand(0.8, 1.8), t: 0, r: rand(1.5, 3), g: -20 });
+    for (let i = 0; i < 14; i++) add({ k: 'soot', x: x + rand(-R * 0.3, R * 0.3), y: y + rand(-R * 0.3, R * 0.1), vx: rand(-40, 40), vy: rand(-120, -50), life: rand(1.6, 2.8), t: rand(-0.35, -0.1), r: rand(0.14, 0.26) * R, g: -15 });
+    if (groundY != null && groundY - y < R) {
+      for (let i = 0; i < 22; i++) {
+        const dir = i % 2 ? 1 : -1;
+        add({ k: 'dust', x: x + dir * rand(0, 20), y: groundY - rand(2, 10), vx: dir * rand(250, 620), vy: rand(-40, -5), life: rand(0.5, 0.9), t: 0, col: '#c9c9cf', r: rand(6, 13), g: 0 });
+      }
+    }
+  }
+
   function casing(x, y, facing, col = '#d9b25c') {
     casings.push({ x, y, vx: -facing * rand(90, 190), vy: rand(-300, -180), rot: rand(0, TAU), vr: rand(-22, 22), col, bounces: 0, sleep: false });
     if (casings.length > 140) casings.shift();
@@ -67,8 +92,9 @@ const Fx = (() => {
   function update(dt, room, panes) {
     for (const p of parts) {
       p.t += dt;
+      if (p.t < 0) continue;
       p.vy += (p.g || 0) * dt;
-      if (p.k === 'smoke' || p.k === 'dust') { p.vx *= 1 - 2 * dt; p.vy *= 1 - 1.5 * dt; }
+      if (p.k === 'smoke' || p.k === 'dust' || p.k === 'soot' || p.k === 'puff') { p.vx *= 1 - 3 * dt; p.vy *= 1 - 2 * dt; }
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.rot != null) p.rot += p.vr * dt;
       if (p.bounce && room.solidAt(p.x, p.y)) { p.y -= p.vy * dt; p.vy *= -0.3; p.vx *= 0.6; p.vr *= 0.5; }
@@ -101,9 +127,43 @@ const Fx = (() => {
       ctx.fillStyle = c.col; ctx.fillRect(-3, -1.3, 6, 2.6);
       ctx.restore();
     }
+    // soot first so the fire sits on top of it
     for (const p of parts) {
+      if (p.k !== 'soot' || p.t < 0) continue;
+      const k = p.t / p.life;
+      ctx.fillStyle = dark ? `rgba(40,42,52,${0.55 * (1 - k)})` : `rgba(120,120,130,${0.45 * (1 - k)})`;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.7 + k * 0.9), 0, TAU); ctx.fill();
+    }
+    for (const p of parts) {
+      if (p.t < 0) continue;
       const a = 1 - p.t / p.life;
       switch (p.k) {
+        case 'flash': {
+          const k = p.t / p.life;
+          ctx.fillStyle = `rgba(255,255,255,${0.95 * (1 - k)})`;
+          ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.35 + 0.65 * easeOut(k)), 0, TAU); ctx.fill();
+          ctx.strokeStyle = `rgba(255,210,120,${0.9 * (1 - k)})`; ctx.lineWidth = 3;
+          ctx.stroke();
+          break;
+        }
+        case 'puff': {
+          // solid toon fireball puff cooling over its life
+          const k = p.t / p.life;
+          const col = k < 0.1 ? '#ffffff' : k < 0.26 ? '#ffe680' : k < 0.46 ? '#ffb020' : k < 0.68 ? '#ff6420' : '#5c5c66';
+          const rr = p.r * (k < 0.25 ? 0.6 + k * 2.4 : 1.2 - (k - 0.25) * 1.1);
+          if (rr <= 0) break;
+          ctx.fillStyle = col; ctx.globalAlpha = k > 0.75 ? (1 - k) * 4 : 1;
+          ctx.beginPath(); ctx.arc(p.x, p.y, rr, 0, TAU); ctx.fill();
+          if (k > 0.1 && k < 0.7) { ctx.strokeStyle = 'rgba(190,70,20,0.45)'; ctx.lineWidth = 2; ctx.stroke(); }
+          if (k < 0.6) { ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.beginPath(); ctx.arc(p.x - rr * 0.25, p.y - rr * 0.3, rr * 0.35, 0, TAU); ctx.fill(); }
+          ctx.globalAlpha = 1;
+          break;
+        }
+        case 'ember':
+          ctx.fillStyle = `rgba(255,${180 + Math.floor(60 * a)},90,${a})`;
+          ctx.fillRect(p.x - p.r / 2, p.y - p.r / 2, p.r, p.r);
+          break;
+        case 'soot': break;
         case 'spark':
           ctx.strokeStyle = rgba(p.col, a); ctx.lineWidth = p.w;
           ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.025, p.y - p.vy * 0.025); ctx.stroke();
@@ -135,7 +195,9 @@ const Fx = (() => {
     }
     for (const r of rings) {
       const k = r.t / r.life;
-      ctx.strokeStyle = rgba(r.col, (1 - k) * 0.8); ctx.lineWidth = r.w * (1 - k) + 0.5;
+      if (k < 0) continue;
+      if (r.edge) { ctx.strokeStyle = `rgba(90,90,100,${(1 - k) * 0.5})`; ctx.lineWidth = r.w * (1 - k) + 3; ctx.beginPath(); ctx.arc(r.x, r.y, r.r * easeOut(k), 0, TAU); ctx.stroke(); }
+      ctx.strokeStyle = rgba(r.col, (1 - k) * 0.85); ctx.lineWidth = r.w * (1 - k) + 0.5;
       ctx.beginPath(); ctx.arc(r.x, r.y, r.r * easeOut(k), 0, TAU); ctx.stroke();
     }
     for (const f of flashes) {
@@ -173,5 +235,5 @@ const Fx = (() => {
     ctx.globalAlpha = 1;
   }
 
-  return { clear, sparks, dust, chips, shards, smoke, fire, trail, casing, muzzle, ring, text, update, draw, drawTexts, get count() { return parts.length; } };
+  return { explosion, clear, sparks, dust, chips, shards, smoke, fire, trail, casing, muzzle, ring, text, update, draw, drawTexts, get count() { return parts.length; } };
 })();

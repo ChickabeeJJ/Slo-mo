@@ -916,7 +916,7 @@ const Game = (() => {
     const tx = p.x + p.vx * 0.25 + rand(-30, 30), ty = p.y - 6;
     const dx = tx - hand.x, dy = ty - hand.y, g = 1500;
     const T = clamp(Math.abs(dx) / 480, 0.55, 1.1);
-    grenades.push({ x: hand.x, y: hand.y, vx: dx / T, vy: (dy - 0.5 * g * T * T) / T, fuse: T + 0.65, t: 0, R: 105 });
+    grenades.push({ x: hand.x, y: hand.y, vx: dx / T, vy: (dy - 0.5 * g * T * T) / T, fuse: T + 0.65, fuse0: T + 0.65, t: 0, R: 105 });
     e.cd = rand(e.def.cd[0], e.def.cd[1]) * cdMul();
     Sfx.swing();
   }
@@ -931,6 +931,11 @@ const Game = (() => {
         else gr.vx *= -0.4;
         if (Math.abs(gr.vx) + Math.abs(gr.vy) > 120) Sfx.shell();
       } else { gr.x = nx; gr.y = ny; }
+      gr.spin = (gr.spin || 0) + gr.vx * dt * 0.05;
+      if (Math.random() < 0.5 && Math.abs(gr.vx) + Math.abs(gr.vy) > 80) Fx.trail(gr.x, gr.y - 6, '#9b9ba3');
+      gr.beepT = (gr.beepT || 0) - dt;
+      if (gr.beepT <= 0) { gr.beepT = clamp(gr.fuse * 0.25, 0.06, 0.3); Sfx.beep(1 - clamp(gr.fuse / 1.6, 0, 1)); gr.blink = 0.06; }
+      gr.blink = Math.max(0, (gr.blink || 0) - dt);
       if (gr.fuse <= 0) { gr.dead = true; explode(gr.x, gr.y - 6, gr.R, false, false); }
     }
     grenades = grenades.filter(g => !g.dead);
@@ -1240,8 +1245,7 @@ const Game = (() => {
   }
   function explode(x, y, R, byPlayer, big) {
     Sfx.boom();
-    Fx.fire(x, y, big ? 34 : 24); Fx.smoke(x, y, big ? 20 : 12, '#8f8f98', big ? 1.4 : 1); Fx.ring(x, y, R + 10, '#ffb347', 10, 0.45); Fx.ring(x, y, R * 0.6, '#ffffff', 6, 0.25);
-    Fx.sparks(x, y, -Math.PI / 2, 24, '#ffd27a', 700);
+    Fx.explosion(x, y, R * (big ? 0.85 : 0.75), groundBelow(x, y - 10));
     room.decals.push({ x, y: y + 10, kind: 'scorch', r: R * 0.47 });
     shake(big ? 18 : 13); flash = big ? 0.35 : 0.25; flashCol = '#fff2c4';
     cam.kick = Math.max(cam.kick, 0.06);
@@ -1526,17 +1530,36 @@ const Game = (() => {
     ctx.globalAlpha = 1;
     prism(ctx, [[x - 4.5, y0 + 8], [x + 4.5, y0 + 8], [x + 4.5, y0 + 20], [x - 4.5, y0 + 20]], ZP - 0.115, ZP + 0.115, 'rgba(150,180,210,0.75)', 'rgba(190,215,240,0.8)', 'rgba(110,140,170,0.75)');
   }
+  // blast warning on the floor: a red zone that fills in as the fuse burns, a rotating dashed edge
+  // and a countdown arc, so you always know where not to stand and how long you have
+  function drawBlastZone(x, gy, R, k) {
+    ctx.save(); ctx.translate(x, gy); ctx.scale(1, 0.13);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+    g.addColorStop(0, `rgba(255,51,68,${0.1 + 0.3 * k})`); g.addColorStop(1, `rgba(255,51,68,${0.05 + 0.12 * k})`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+    ctx.fillStyle = `rgba(255,51,68,${0.25 + 0.35 * k})`; ctx.beginPath(); ctx.arc(0, 0, R * k, 0, TAU); ctx.fill();
+    ctx.setLineDash([14, 10]); ctx.lineDashOffset = -clock * 60;
+    ctx.strokeStyle = `rgba(226,40,55,${0.6 + 0.4 * Math.sin(clock * 20) * k})`; ctx.lineWidth = 3 / 0.13 * 0.35;
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
   function drawGrenades() {
     for (const gr of grenades) {
+      const k = 1 - clamp(gr.fuse / (gr.fuse0 || 1.5), 0, 1);
       const gy = groundBelow(gr.x, gr.y - 4);
-      if (gy != null) {
-        const a = 0.18 + 0.14 * Math.sin(clock * 18);
-        ctx.fillStyle = `rgba(255,51,68,${a})`; ctx.strokeStyle = `rgba(255,51,68,${a + 0.3})`; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.ellipse(gr.x, gy, gr.R * 0.9, 9, 0, 0, TAU); ctx.fill(); ctx.stroke();
-      }
-      ctx.fillStyle = '#3f4a32'; ctx.beginPath(); ctx.arc(gr.x, gr.y - 5, 6, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#5d6b4a'; ctx.beginPath(); ctx.arc(gr.x - 1.5, gr.y - 6.5, 3, 0, TAU); ctx.fill();
-      if (Math.sin(clock * (14 + 20 / Math.max(0.2, gr.fuse))) > 0) Glow.draw(ctx, '#ff3344', gr.x, gr.y - 9, 10, 0.95);
+      if (gy != null) drawBlastZone(gr.x, gy, gr.R * 0.9, k);
+      // countdown arc around the grenade
+      ctx.strokeStyle = 'rgba(255,51,68,0.85)'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(gr.x, gr.y - 6, 12, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - k)); ctx.stroke();
+      // the grenade: ribbed olive body, a spoon and a red light that blinks faster as it counts down
+      ctx.save(); ctx.translate(gr.x, gr.y - 6); ctx.rotate(gr.spin || 0);
+      ctx.fillStyle = '#4d5a3c'; ctx.beginPath(); ctx.ellipse(0, 0, 6.5, 7.5, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#3a4430'; ctx.fillRect(-6.5, -1, 13, 2); ctx.fillRect(-1, -7.5, 2, 15);
+      ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.beginPath(); ctx.arc(-2.5, -3, 2.2, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#8b8f99'; ctx.fillRect(-2.5, -11, 5, 4); ctx.fillRect(2, -10.5, 6, 1.6);
+      ctx.restore();
+      if (gr.blink > 0) { Glow.draw(ctx, '#ff3344', gr.x, gr.y - 17, 16, 1); ctx.fillStyle = '#ff3344'; ctx.fillRect(gr.x - 1.5, gr.y - 18.5, 3, 3); }
     }
   }
   function drawCrate(c) {
@@ -1605,6 +1628,8 @@ const Game = (() => {
     ctx.beginPath(); ctx.moveTo(-0.5, -0.5); ctx.quadraticCurveTo(2.5, 2.5, 0.5, 5); ctx.quadraticCurveTo(-2.5, 4.5, -2, 2); ctx.closePath(); ctx.fill();
     ctx.restore();
     if (lit) {
+      drawBlastZone(br.x, br.y, 150, lit);
+      if (Math.random() < 0.7) Fx.sparks(cx + 6, y0 - 3, -Math.PI / 2 - 0.3, 1, '#ffd27a', 260);
       Glow.draw(ctx, '#ff6a3d', cx, y0 + br.h / 2, 36 + 26 * lit, 0.35 + 0.35 * lit);
       Glow.draw(ctx, '#fff2b0', cx + 7, y0 - 2, 9 + 5 * Math.random(), 0.9);
     }
