@@ -20,7 +20,8 @@
 const TUTORIAL_TEXT = {
   sprint: ['Hold SHIFT\nto sprint', 'Push the stick\nall the way to sprint'],
   jump: ['SPACE to jump', 'Tap JUMP\nto jump'],
-  slide: ['RIGHT CLICK\nto slide', 'Tap SLIDE\nto slide'],
+  flip: ['Jump while sprinting\nor sliding to flip', 'Jump while sprinting\nor sliding to flip'],
+  slide: ['SHIFT or RIGHT CLICK\nto slide', 'Tap SLIDE\nto slide'],
   shoot: ['CLICK to shoot', 'Drag the right stick\nto aim and fire'],
   slow: ['Press Q to\nslow time', 'Tap SLOW\nto slow time'],
   dodge: ['Slide or jump\nunder bullets', 'Slide or jump\nunder bullets'],
@@ -70,7 +71,7 @@ const HAND_LEVELS = [
           '#................................#',
           '#.P........B..........T.......D..#',
           '##################################',
-        ], text: [[6.5, 2.4, 'sprint'], [17.5, 2.4, 'jump']],
+        ], text: [[6.5, 2.4, 'sprint'], [16, 2.4, 'jump'], [26, 2.4, 'flip']],
       },
       {
         map: [
@@ -79,7 +80,7 @@ const HAND_LEVELS = [
           '#...............######.................#',
           '#...............######.................#',
           '#...............######.............D...#',
-          '#...............######......./##########',
+          '#............................/##########',
           '#..P.........................#/#########',
           '########################################',
         ], text: [[8, 2.6, 'slide']],
@@ -333,8 +334,10 @@ function genRoom(seed, d, opts = {}) {
     else if (r < 0.5 && fl - (ce + 1) >= 5) { ce++; }
     else if (r < 0.58 && ce > 0) { ce--; }
     else if (r < 0.58 + st.slide && slideOk && d > 0.12) {
+      // vent: two tiles of headroom (slide under it), with flat floor on both sides
       const sl = ri(3, 5);
-      for (let i = 0; i < sl && x < cols - 9; i++, x++) { f[x] = fl; c[x] = fl - 2; }
+      for (let i = 0; i < sl && x < cols - 11; i++, x++) { f[x] = fl; c[x] = fl - 3; }
+      for (let i = 0; i < 2 && x < cols - 9; i++, x++) { f[x] = fl; c[x] = Math.min(ce, fl - 5); }
       continue;
     }
     for (let i = 0; i < len && x < cols - 9; i++, x++) { f[x] = fl; c[x] = ce; }
@@ -358,12 +361,14 @@ function genRoom(seed, d, opts = {}) {
   for (let i = 1; i < cols - 1; i++) {
     if (f[i] === f[i - 1] - 1) set(i, f[i], '/');
     if (f[i] === f[i - 1] + 1) set(i - 1, f[i - 1], '\\');
-    const sharp = c[i] >= f[i] - 2 || c[i - 1] >= f[i - 1] - 2;   // slide tunnels keep square edges
+    const sharp = c[i] >= f[i] - 3 || c[i - 1] >= f[i - 1] - 3;   // slide vents keep square edges
     if (!sharp && c[i] === c[i - 1] + 1 && c[i] > 0) set(i, c[i], 'b');
     if (!sharp && c[i] === c[i - 1] - 1 && c[i - 1] > 0) set(i - 1, c[i - 1], 'a');
   }
   const flatAt = i => i > 1 && i < cols - 2 && f[i - 1] === f[i] && f[i + 1] === f[i] && c[i] < f[i] - 3 && at(i, f[i]) === '#';
-  const roomy = i => f[i] - c[i] >= 5;            // space to hop over a 1-tile crate
+  // space to hop over a 1-tile crate, and never at the mouth of a vent (you can't jump while ducked under it)
+  const vent = i => i > 0 && i < cols - 1 && c[i] >= f[i] - 3;
+  const roomy = i => f[i] - c[i] >= 5 && !vent(i - 2) && !vent(i - 1) && !vent(i + 1) && !vent(i + 2);
   const used = new Set();
   const free = (i, r) => at(i, r) === '.' && !used.has(i + ',' + r);
   const mark = (i, r, v) => { set(i, r, v); used.add(i + ',' + r); };

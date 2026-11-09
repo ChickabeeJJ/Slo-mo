@@ -42,7 +42,7 @@
       else if (!UI.modalOpen()) UI.openPause();
       return;
     }
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') Game.setKey('sprint', true);
+    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { Game.setKey('sprint', true); if (!e.repeat && inPlay()) Game.press('shiftSlide'); }
     if (MOVE[e.code]) { Game.setKey(MOVE[e.code], true); if (inPlay()) e.preventDefault(); }
     if (!inPlay() || e.repeat) return;
     switch (e.code) {

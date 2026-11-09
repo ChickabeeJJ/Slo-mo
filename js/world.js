@@ -39,6 +39,7 @@ class Room {
     this.spawn = { x: 2 * TILE, y: this.h - TILE };
     this.door = null; this.entry = null;
     this.decals = [];
+    this.dyn = [];
     this.parse(map);
     this.buildFaces();
     this.buildDecor(map);
@@ -129,6 +130,7 @@ class Room {
 
   // Move an upright body (x = centre, y = feet). Returns { wall, pane, landed, ceiling }.
   moveBody(e, dt, panes) {
+    const plats = this.dyn && this.dyn.length ? this.platforms.concat(this.dyn) : this.platforms;
     const out = { wall: 0, pane: null, landed: false, ceiling: false, stepped: false };
     const hw = e.w / 2;
     const steps = Math.max(1, Math.ceil(Math.max(Math.abs(e.vx), Math.abs(e.vy)) * dt / 12));
@@ -169,11 +171,11 @@ class Room {
         const ny = e.y + dy;
         let land = null;
         if (this.boxHit(e.x - hw, ny - 1, e.x + hw, ny, panes)) land = Math.floor(ny / SUB) * SUB;
-        for (const p of this.platforms) {
+        for (const p of plats) {
           if (e.dropPlat === p || e.x + hw <= p.x1 || e.x - hw >= p.x2) continue;
           if (e.y <= p.y + 0.5 && ny >= p.y && (land === null || p.y < land)) land = p.y;
         }
-        if (land !== null && land >= e.y - 0.5) { e.y = land; e.vy = 0; e.grounded = true; e.plat = this.platforms.find(p => p.y === land && e.x + hw > p.x1 && e.x - hw < p.x2) || null; out.landed = !wasGrounded; }
+        if (land !== null && land >= e.y - 0.5) { e.y = land; e.vy = 0; e.grounded = true; e.plat = plats.find(p => p.y === land && e.x + hw > p.x1 && e.x - hw < p.x2) || null; out.landed = !wasGrounded; }
         else if (land !== null) { e.vy = 0; }
         else e.y = ny;
       } else if (dy < 0) {
@@ -188,7 +190,7 @@ class Room {
       const probe = wasGrounded ? SUB + 2 : 1;
       for (let d = 1; d <= probe; d++) {
         if (this.boxHit(e.x - hw, e.y + d - 1, e.x + hw, e.y + d, panes)) { e.y = Math.floor((e.y + d) / SUB) * SUB; e.grounded = true; e.vy = 0; break; }
-        const p = this.platforms.find(p => e.dropPlat !== p && e.x + hw > p.x1 && e.x - hw < p.x2 && Math.abs(p.y - (e.y + d)) < 1);
+        const p = plats.find(p => e.dropPlat !== p && e.x + hw > p.x1 && e.x - hw < p.x2 && Math.abs(p.y - (e.y + d)) < 1);
         if (p) { e.y = p.y; e.grounded = true; e.plat = p; e.vy = 0; break; }
       }
     }
@@ -202,7 +204,7 @@ class Room {
   }
   groundAhead(x, y) {
     if (this.boxHit(x - 2, y + 1, x + 2, y + SUB + 4)) return true;
-    return this.platforms.some(p => x > p.x1 + 4 && x < p.x2 - 4 && Math.abs(p.y - y) < 3);
+    return this.platforms.concat(this.dyn || []).some(p => x > p.x1 + 4 && x < p.x2 - 4 && Math.abs(p.y - y) < 3);
   }
 
   // point vs world for ragdoll points and debris; p: {x,y,px,py}; returns true on contact
@@ -285,17 +287,19 @@ class Room {
     const H = new Map(), Vt = new Map();
     const addH = (key, x) => { if (!H.has(key)) H.set(key, []); H.get(key).push(x); };
     const addV = (key, y) => { if (!Vt.has(key)) Vt.set(key, []); Vt.get(key).push(y); };
+    const crateSet = new Set(this.crateTiles.map(c => (c.x / TILE) + ',' + (c.y / TILE)));
     for (let y = 0; y < sr; y++) for (let x = 0; x < sc; x++) {
       if (!solid(x, y)) continue;
-      if (air(x, y - 1)) addH('top|' + y, x);
-      if (air(x, y + 1)) addH('bottom|' + (y + 1), x);
-      if (air(x - 1, y)) addV('left|' + x, y);
-      if (air(x + 1, y)) addV('right|' + (x + 1), y);
+      const cr = crateSet.has((x >> 1) + ',' + (y >> 1)) ? '|c' : '';
+      if (air(x, y - 1)) addH('top|' + y + cr, x);
+      if (air(x, y + 1)) addH('bottom|' + (y + 1) + cr, x);
+      if (air(x - 1, y)) addV('left|' + x + cr, y);
+      if (air(x + 1, y)) addV('right|' + (x + 1) + cr, y);
     }
     const faces = [];
     const runs = list => { list.sort((a, b) => a - b); const out = []; let s = list[0], p = list[0]; for (let i = 1; i <= list.length; i++) { if (list[i] === p + 1) { p = list[i]; continue; } out.push([s, p + 1]); s = p = list[i]; } return out; };
-    for (const [key, xs] of H) { const [type, y] = key.split('|'); for (const [a, b] of runs(xs)) faces.push({ type, x1: a * SUB, y1: +y * SUB, x2: b * SUB, y2: +y * SUB }); }
-    for (const [key, ys] of Vt) { const [type, x] = key.split('|'); for (const [a, b] of runs(ys)) faces.push({ type, x1: +x * SUB, y1: a * SUB, x2: +x * SUB, y2: b * SUB }); }
+    for (const [key, xs] of H) { const [type, y, cr] = key.split('|'); for (const [a, b] of runs(xs)) faces.push({ type, x1: a * SUB, y1: +y * SUB, x2: b * SUB, y2: +y * SUB, crate: !!cr }); }
+    for (const [key, ys] of Vt) { const [type, x, cr] = key.split('|'); for (const [a, b] of runs(ys)) faces.push({ type, x1: +x * SUB, y1: a * SUB, x2: +x * SUB, y2: b * SUB, crate: !!cr }); }
     // ledges are thin full-depth slabs
     for (const p of this.platforms) {
       if (p.kind !== 'ledge') continue;
@@ -594,10 +598,13 @@ class Room {
     }
     vis.sort((a, b) => b.d - a.d);
     const col = { top: th.top, bottom: th.under, left: th.side, right: shade(th.side, th.dark ? 0.05 : -0.04) };
+    const mat = crateMaterial(th);
+    const ccol = { top: shade(mat.base, 0.12), bottom: shade(mat.base, -0.3), left: shade(mat.base, -0.14), right: shade(mat.base, -0.2) };
     for (const f of vis) {
       const a = P(f.x1, f.y1, 1), b = P(f.x2, f.y2, 1);
-      ctx.fillStyle = col[f.type];
-      ctx.strokeStyle = col[f.type];
+      const fc = f.crate ? ccol[f.type] : col[f.type];
+      ctx.fillStyle = fc;
+      ctx.strokeStyle = fc;
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.lineTo(b[0], b[1]); ctx.lineTo(a[0], a[1]); ctx.closePath();
       ctx.fill(); ctx.stroke();
@@ -759,12 +766,69 @@ class Room {
     for (const s of this.slopes) { if (s.kind === 'a') { ctx.moveTo(s.x, s.y + TILE); ctx.lineTo(s.x + TILE, s.y); } else { ctx.moveTo(s.x, s.y); ctx.lineTo(s.x + TILE, s.y + TILE); } }
     ctx.stroke();
     // crate blocks
+    const mat = crateMaterial(th);
     for (const c of this.crateTiles) {
-      ctx.strokeStyle = th.dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.12)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(c.x + 4, c.y + 4, TILE - 8, TILE - 8);
-      ctx.beginPath(); ctx.moveTo(c.x + 4, c.y + TILE - 4); ctx.lineTo(c.x + TILE - 4, c.y + 4); ctx.stroke();
+      ctx.save(); ctx.translate(c.x + TILE / 2, c.y + TILE / 2);
+      drawCrateFace(ctx, TILE, mat);
+      ctx.restore();
     }
+  }
+}
+
+/* --------------------------------------------------------------- crates */
+// Each chapter stacks its own kind of box: timber crates, cardboard, white flight cases, steel cases.
+function crateMaterial(th) {
+  switch (th.decor) {
+    case 'office': return { kind: 'card', base: '#d6b585', dark: '#a8875c', light: '#ead2a8', tape: '#efe3c8' };
+    case 'warehouse': return { kind: 'wood', base: '#c79e66', frame: '#9a7344', dark: '#6e4f2b', light: '#e2bf8b' };
+    case 'highrise': return { kind: 'case', base: '#e9edf2', frame: '#b9c3cf', dark: '#8d99a8', light: '#ffffff', accent: '#4da3ff' };
+    case 'night': return { kind: 'case', base: '#3b4253', frame: '#2a2f3d', dark: '#171a22', light: '#5a647c', accent: '#ffd34d' };
+    default: return { kind: 'wood', base: '#dcc59d', frame: '#b49366', dark: '#8b6d48', light: '#f0dfbd' };
+  }
+}
+// near face of a box of side S, centred on the origin
+function drawCrateFace(ctx, S, m) {
+  const h = S / 2, b = Math.max(3, S * 0.12);
+  ctx.fillStyle = m.base; ctx.fillRect(-h, -h, S, S);
+  if (m.kind === 'wood') {
+    // planks with seams and grain
+    for (let i = 1; i < 3; i++) { const y = -h + S * i / 3; ctx.fillStyle = m.dark; ctx.fillRect(-h, y - 0.6, S, 1.2); ctx.fillStyle = m.light; ctx.fillRect(-h, y + 0.6, S, 0.8); }
+    ctx.strokeStyle = 'rgba(110,75,40,0.25)'; ctx.lineWidth = 0.8;
+    for (const [y, x0, x1] of [[-h * 0.55, -h * 0.4, h * 0.3], [h * 0.05, -h * 0.1, h * 0.6], [h * 0.6, -h * 0.7, h * 0.1]]) { ctx.beginPath(); ctx.moveTo(x0, y); ctx.quadraticCurveTo((x0 + x1) / 2, y - 1.5, x1, y); ctx.stroke(); }
+    // diagonal brace
+    ctx.fillStyle = m.frame;
+    ctx.beginPath(); ctx.moveTo(-h + b, h - b - b * 0.9); ctx.lineTo(h - b - b * 0.9, -h + b); ctx.lineTo(h - b, -h + b + b * 0.9); ctx.lineTo(-h + b + b * 0.9, h - b); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = m.dark; ctx.lineWidth = 0.9; ctx.stroke();
+    // frame
+    ctx.fillStyle = m.frame;
+    ctx.fillRect(-h, -h, S, b); ctx.fillRect(-h, h - b, S, b); ctx.fillRect(-h, -h, b, S); ctx.fillRect(h - b, -h, b, S);
+    ctx.fillStyle = m.light; ctx.fillRect(-h, -h, S, 1); ctx.fillRect(-h, -h, 1, S);
+    ctx.fillStyle = m.dark; ctx.fillRect(-h, h - 1, S, 1); ctx.fillRect(h - 1, -h, 1, S);
+    ctx.strokeStyle = m.dark; ctx.lineWidth = 0.8; ctx.strokeRect(-h + b, -h + b, S - 2 * b, S - 2 * b);
+    // nails
+    ctx.fillStyle = '#5a4630';
+    for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { ctx.beginPath(); ctx.arc(x * (h - b / 2), y * (h - b / 2), Math.max(0.8, S * 0.025), 0, TAU); ctx.fill(); }
+  } else if (m.kind === 'card') {
+    // cardboard box: flaps, packing tape, a printed arrow
+    ctx.fillStyle = m.light; ctx.fillRect(-h, -h, S, S * 0.08);
+    ctx.fillStyle = m.dark; ctx.fillRect(-h, -h + S * 0.3, S, 1);
+    ctx.fillStyle = m.tape; ctx.fillRect(-S * 0.09, -h, S * 0.18, S * 0.42);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(-S * 0.09, -h, S * 0.04, S * 0.42);
+    ctx.strokeStyle = 'rgba(80,60,35,0.6)'; ctx.lineWidth = Math.max(1, S * 0.035);
+    for (const x of [-h * 0.55, -h * 0.25]) { ctx.beginPath(); ctx.moveTo(x, h * 0.65); ctx.lineTo(x, h * 0.2); ctx.moveTo(x - S * 0.05, h * 0.32); ctx.lineTo(x, h * 0.2); ctx.lineTo(x + S * 0.05, h * 0.32); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(80,60,35,0.45)'; ctx.fillRect(h * 0.15, h * 0.35, S * 0.3, S * 0.05); ctx.fillRect(h * 0.15, h * 0.52, S * 0.22, S * 0.05);
+    ctx.strokeStyle = m.dark; ctx.lineWidth = 1; ctx.strokeRect(-h + 0.5, -h + 0.5, S - 1, S - 1);
+  } else {
+    // flight / steel case: rim, ribs, corner brackets and latches
+    ctx.fillStyle = m.frame;
+    ctx.fillRect(-h, -h, S, b * 0.8); ctx.fillRect(-h, h - b * 0.8, S, b * 0.8); ctx.fillRect(-h, -h, b * 0.8, S); ctx.fillRect(h - b * 0.8, -h, b * 0.8, S);
+    ctx.fillStyle = m.light; ctx.fillRect(-h + b, -h + b, S - 2 * b, 1.2);
+    ctx.fillStyle = m.dark; for (let i = 1; i < 4; i++) ctx.fillRect(-h + b, -h + S * i / 4, S - 2 * b, 1);
+    ctx.fillStyle = m.dark;
+    for (const [x, y] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) ctx.fillRect(x * h - (x > 0 ? b * 1.3 : 0), y * h - (y > 0 ? b * 1.3 : 0), b * 1.3, b * 1.3);
+    ctx.fillStyle = m.accent;
+    for (const x of [-h * 0.5, h * 0.5]) ctx.fillRect(x - S * 0.06, -h + b * 0.2, S * 0.12, b * 1.1);
+    ctx.fillRect(-S * 0.2, -S * 0.04, S * 0.4, S * 0.08);
   }
 }
 

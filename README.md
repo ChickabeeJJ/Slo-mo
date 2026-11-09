@@ -10,16 +10,17 @@ To play, serve the folder (for example `python3 -m http.server`) and open `index
 
 - **Rooms and doors.** A level is a chain of 3–4 rooms. Each exit door has a lamp: red while anyone in the room is alive, with an "N LEFT" counter when you get close. Once the room is clear the lamp turns green, an EXIT sign pulses, and the door swings open as you approach. Anywhere across the door frame counts, even mid-jump. Dying restarts the room, not the level.
 - **Slow motion.** **Q** toggles bullet time. It drains a meter, and every kill refills some of it. The world drops to about a quarter speed while you keep about two thirds, so you can out-run bullets. The mix goes muffled, the music's tempo drags and a heartbeat plays. Slow motion also kicks in on its own for close calls, glass breaking, explosions and the **kill cam** on the last enemy in a room.
-- **Movement.** Sprint (**Shift**), jump (**Space**), slide (**right click**/**S**). Sliding lowers your hitbox under chest-high bullets and gets you through low vents. Jumping while sprinting does a **front flip**. Sprinting, sliding or jumping into glass shatters it. Walking into crates kicks them. To drop through a ledge or table, stand still on it and press slide.
+- **Movement.** Hold **Shift** to sprint. Pressing **Shift** while moving also starts a slide, and you keep sprinting when the slide ends. **Right click**, **S** or **C** also slide. Sliding lowers your hitbox under chest-high bullets and gets you through low vents (two tiles tall). Slide in mid-air to dive: you drop low and land straight into a slide, keeping your speed. **Front flip:** jump while sprinting or sliding (any jump at high speed). Sprinting, sliding or jumping into glass shatters it. To drop through a ledge or table, stand still on it and press right click or S.
+- **Physics.** Dead bodies go limp, then break into separate limb blocks. Limb blocks and crates are rigid bodies with mass, spin, friction and bounce: they tip over edges, roll, stack and settle. Crates are cover (bullets thump into them and shove them). You can push them, tip them over by sprinting or sliding into them, and stand on them.
 - **Gunplay.** Every bullet is a visible projectile. Player rounds from every gun fly at the same slow speed (900 px/s), so you have to lead your shots, and fire rates are deliberately slow. Enemy shots are dark slugs with a white wake, and every gunman shows a red sight line before firing, so you can always read a shot. You can **shoot bullets out of the air**. Enemies drop their guns: press **E** to grab one. A grabbed gun has a fixed magazine and gets tossed when it's empty. Enemy bullets can hit other enemies.
-- **Style.** Each kill is worth 100, plus bonuses for HEADSHOT, AIRBORNE, FLIP KILL, SLIDE KILL, PIERCE, BOOM, CROSSFIRE and MULTI KILL. DEFLECT also scores. Chained kills build a combo multiplier, up to x4.
+- **Style.** Each kill is worth 100, plus bonuses for HEADSHOT, AIRBORNE, FLIP KILL, SLIDE KILL, BOOM, CROSSFIRE and MULTI KILL. DEFLECT also scores. Chained kills build a combo multiplier, up to x4.
 
 ## Weapons
 
 | Weapon | Gimmick |
 | --- | --- |
 | Pistol | Reliable, fast reload |
-| Hand Cannon | Rounds pass through 3 bodies |
+| Hand Cannon | Double damage: cracks Juggernaut armour in two hits |
 | SMG | Hold to spray |
 | Burst Rifle | Three-round burst per click |
 | Shotgun | Six-pellet spread |
@@ -27,10 +28,10 @@ To play, serve the folder (for example `python3 -m http.server`) and open `index
 | Splitter | Each round splits into three mid-flight |
 | Twin Pistols | Alternating hands, fast clicks |
 | Seeker | Rounds curve toward the nearest enemy |
-| Battle Rifle | Full auto, pierces once |
+| Battle Rifle | Steady full auto with a tight spread |
 | Launcher | Arcing grenades that explode on impact (the splash can get you too) |
 | Minigun | Spins up before firing, slows you while it fires |
-| Railgun | Hold to charge, release to fire through walls and every body |
+| Railgun | Hold to charge, release to fire straight through walls; one-shots anything |
 
 Shot barrels fizz and flash for a moment before exploding, and explosions chain into nearby barrels.
 
@@ -64,7 +65,7 @@ Lowercase map chars face the player's side. UPPERCASE ones face away until they 
 
 ## Levels
 
-Chapter 1 is handcrafted. The first level recreates the demo's tutorial rooms, with the instructions painted on the back wall: sprint, slide under a low vent and up the stairs, a gunman facing away, then slowing time against two gunmen. The rest of the campaign and Endless come from a seeded generator (`genRoom` in `js/levels.js`). It builds stairs, raised sections, sloped ceilings, slide tunnels, ledges, glass, cover crates, barrels and furniture, so every level always lays out the same. The map legend is at the top of `js/levels.js`.
+Chapter 1 is handcrafted. The first level recreates the demo's tutorial rooms, with the instructions painted on the back wall: sprint, slide under a low vent and up the stairs, a gunman facing away, then slowing time against two gunmen. The rest of the campaign and Endless come from a seeded generator (`genRoom` in `js/levels.js`). It builds stairs, raised sections, sloped ceilings, slide tunnels, ledges, glass, cover crates, barrels and furniture, so every level always lays out the same. The map legend is at the top of `js/levels.js`. The generator keeps crate blocks clear of vent openings, and every campaign room plus a few hundred Endless rooms have been checked with a search that uses the real movement physics (sprint, jump, slide) to confirm the exit door can be reached from the spawn.
 
 ## Ads (CrazyGames)
 
@@ -75,9 +76,9 @@ Chapter 1 is handcrafted. The first level recreates the demo's tutorial rooms, w
 | Desktop | Action |
 | --- | --- |
 | `A` / `D` (or arrows) | Move |
-| `Shift` | Sprint (jump while sprinting to flip) |
+| `Shift` | Sprint; pressing it while moving also slides (jump while sprinting or sliding to flip) |
 | `W` / `Space` | Jump |
-| Right click / `S` / `C` | Slide (stand still on a ledge to drop through) |
+| Right click / `S` / `C` | Slide, or dive if you're in the air (stand still on a ledge to drop through) |
 | Mouse + left click | Aim and shoot (hold for automatic weapons) |
 | `Q` | Slow time |
 | `R` | Reload (and retry after dying) |
@@ -97,7 +98,8 @@ js/audio.js       synthesized guns, impacts, glass, explosions + a tempo-scaled 
 js/data.js        weapons, enemy archetypes, skins, hats, missions, style table
 js/levels.js      map legend, themes, chapters, handcrafted levels, room generator
 js/progress.js    save data, armory, daily missions, login streak
-js/world.js       room parsing, 20px collision grid, one-point perspective renderer
+js/world.js       room parsing, 20px collision grid, one-point perspective renderer, crate art
+js/physics.js     rigid boxes for limb blocks and crates: contacts, friction, stacking, sleeping
 js/ragdoll.js     blocky active-ragdoll bodies, death ragdolls, loose limb blocks, guns, hats
 js/fx.js          sparks, dust, glass, shell casings, muzzle flashes, style popups
 js/game.js        player, enemy AI, bullets, slow motion, scoring, camera, rendering

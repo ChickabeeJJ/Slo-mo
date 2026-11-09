@@ -522,58 +522,43 @@ function drawGun(ctx, hand, ang, id, dual) {
 }
 
 /* --------------------------------------------------------------- pieces */
-// A loose block: two verlet points joined by a rigid stick, drawn as a prism.
+// A loose limb block is a rigid box (see physics.js) carrying its colour and fade-to-white.
 function makePiece(a, b, st, body, vx, vy) {
   const h = 1 / 120;
   const role = st[5];
   const isHead = role === 'head';
   let ax = a.x, ay = a.y, bx = b.x, by = b.y;
   if (isHead) { const dx = bx - ax, dy = by - ay; ax += dx * 0.25; ay += dy * 0.25; bx += dx * 0.75; by += dy * 0.75; }
-  const avx = (a.x - (a.px != null ? a.px : a.x - a.vx * h)) , avy = (a.y - (a.py != null ? a.py : a.y - a.vy * h));
-  const bvx = (b.x - (b.px != null ? b.px : b.x - b.vx * h)), bvy = (b.y - (b.py != null ? b.py : b.y - b.vy * h));
-  const jx = rand(-60, 60), jy = rand(-80, 0);
-  const p1 = { x: ax, y: ay, px: ax - (body.dead ? avx : 0) - (vx + jx) * h, py: ay - (body.dead ? avy : 0) - (vy + jy) * h };
-  const p2 = { x: bx, y: by, px: bx - (body.dead ? bvx : 0) - (vx - jx) * h, py: by - (body.dead ? bvy : 0) - (vy + jy) * h };
-  return {
-    a: p1, b: p2, len: Math.max(6, Math.hypot(bx - ax, by - ay)), th: st[3] * body.s * (isHead ? 0.95 : 1), dz: st[4],
-    color: body.tint(), target: body.deadColor, whiteT: body.whiteT, head: isHead, sleep: 0, acc: 0, life: 0,
+  // velocity of each end: from the verlet history on a ragdoll, from the springs on a living body
+  const va = body.dead ? [(a.x - a.px) / h, (a.y - a.py) / h] : [a.vx, a.vy];
+  const vb = body.dead ? [(b.x - b.px) / h, (b.y - b.py) / h] : [b.vx, b.vy];
+  const L = isHead ? st[3] * body.s * 0.95 : Math.max(6, Math.hypot(bx - ax, by - ay)) + 5;
+  const T = st[3] * body.s * (isHead ? 0.95 : 1);
+  const ang = Math.atan2(by - ay, bx - ax);
+  // spin from the difference between the two ends
+  const ux = Math.cos(ang), uy = Math.sin(ang), len = Math.max(6, Math.hypot(bx - ax, by - ay));
+  const spin = ((vb[1] - va[1]) * ux - (vb[0] - va[0]) * uy) / len;
+  const pc = Rigid.make({
+    x: (ax + bx) / 2, y: (ay + by) / 2, a: ang, L, T,
+    vx: (va[0] + vb[0]) / 2 + vx + rand(-50, 50), vy: (va[1] + vb[1]) / 2 + vy + rand(-60, 0), w: clamp(spin, -25, 25) + rand(-3, 3),
+    density: role === 'torso' ? 1.2 : 1, e: 0.22, mu: 0.6,
+  });
+  return Object.assign(pc, {
+    dz: st[4], color: body.tint(), target: body.deadColor, whiteT: body.whiteT, head: isHead,
     back: role === 'barm' || role === 'bleg',
-  };
+  });
 }
 
-function simPiece(pc, dt, room, panes) {
-  pc.life += dt;
+// after Rigid.stepAll: fade to white and knock on impact
+function simPiece(pc, dt) {
   pc.whiteT = clamp(pc.whiteT + dt / 0.4, 0, 1);
-  if (pc.sleep > 0.6) return;
-  const h = 1 / 120;
-  pc.acc += dt;
-  let n = 0;
-  while (pc.acc >= h && n < 8) {
-    pc.acc -= h; n++;
-    for (const p of [pc.a, pc.b]) {
-      const vx = (p.x - p.px) * 0.994, vy = (p.y - p.py) * 0.994;
-      p.px = p.x; p.py = p.y; p.x += vx; p.y += vy + GRAV * h * h;
-    }
-    for (let it = 0; it < 3; it++) {
-      const dx = pc.b.x - pc.a.x, dy = pc.b.y - pc.a.y, d = Math.hypot(dx, dy) || 0.001;
-      const diff = (d - pc.len) / d * 0.5;
-      pc.a.x += dx * diff; pc.a.y += dy * diff; pc.b.x -= dx * diff; pc.b.y -= dy * diff;
-      const r = Math.min(pc.th / 2, 10);
-      room.collidePoint(pc.a, r, 0.55, panes); room.collidePoint(pc.b, r, 0.55, panes);
-    }
-  }
-  const sp = Math.abs(pc.a.x - pc.a.px) + Math.abs(pc.a.y - pc.a.py) + Math.abs(pc.b.x - pc.b.px) + Math.abs(pc.b.y - pc.b.py);
-  pc.sleep = sp < 0.08 ? pc.sleep + dt : 0;
+  if (pc.hit > 260 && (pc.lastThud || 0) < pc.life - 0.12) { pc.lastThud = pc.life; Sfx.thud(clamp(pc.hit / 900, 0.2, 0.8)); }
 }
 function wakePiece(pc) { pc.sleep = 0; }
 
 function drawPiece(ctx, pc) {
   const c = mixHex(pc.color, pc.target, pc.whiteT);
   const col = pc.back ? shade(c, -0.1) : c;
-  if (pc.head) {
-    const dx = pc.b.x - pc.a.x, dy = pc.b.y - pc.a.y, l = Math.hypot(dx, dy) || 1, ux = dx / l, uy = dy / l;
-    const cx = (pc.a.x + pc.b.x) / 2, cy = (pc.a.y + pc.b.y) / 2, h = pc.th / 2;
-    const P = (a, b) => [cx - uy * a + ux * b, cy + ux * a + uy * b];
-    prism(ctx, [P(-h, -h), P(h, -h), P(h, h), P(-h, h)], ZP - 0.07, ZP + 0.07, col, shade(col, 0.14), shade(col, -0.13), shade(col, -0.22));
-  } else limb(ctx, pc.a.x, pc.a.y, pc.b.x, pc.b.y, pc.th, pc.dz, col, pc.th > 18 ? 1.4 : 1);
+  const dz = pc.head ? 0.07 : pc.dz;
+  prism(ctx, Rigid.corners(pc), ZP - dz, ZP + dz, col, shade(col, 0.14), shade(col, -0.13), shade(col, -0.22));
 }

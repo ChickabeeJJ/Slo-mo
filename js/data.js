@@ -4,14 +4,14 @@
    ========================================================================= */
 
 // Player weapons. mag: rounds per magazine, rate: seconds between shots (player time),
-// pierce: extra bodies a round passes through, pellets/spread for shotguns. Gimmicks: burst, bounce,
+// dmg: damage per hit (armour soaks 1 per point), pellets/spread for shotguns. Gimmicks: burst, bounce,
 // split, homing, gravity + blast (grenades), spinup (minigun), charge + wallPierce (railgun).
 // Every player round flies at the same slow, readable speed (like the original demo), so
 // shots have to be led. rate: seconds between shots in player time.
 const BULLET_SPEED = 900;
 const WEAPONS = [
   { id: 'pistol', name: 'Pistol', price: 0, mag: 9, rate: 0.34, reload: 1.1, spread: 0.012, len: 16, desc: 'Reliable. Fast reload.' },
-  { id: 'revolver', name: 'Hand Cannon', price: 350, mag: 6, rate: 0.7, reload: 1.4, spread: 0, pierce: 2, len: 20, kick: 1.8, big: true, desc: 'Every round passes through 3 bodies.' },
+  { id: 'revolver', name: 'Hand Cannon', price: 350, mag: 6, rate: 0.7, reload: 1.4, spread: 0, dmg: 2, len: 20, kick: 1.8, big: true, desc: 'Double damage: cracks Juggernaut armour in two hits.' },
   { id: 'smg', name: 'SMG', price: 700, mag: 26, rate: 0.13, reload: 1.4, spread: 0.06, auto: true, len: 20, desc: 'Hold to spray.' },
   { id: 'burst', name: 'Burst Rifle', price: 850, mag: 21, rate: 0.75, reload: 1.5, spread: 0.02, burst: 3, burstGap: 0.08, len: 26, desc: 'Three-round burst on every click.' },
   { id: 'shotgun', name: 'Shotgun', price: 1000, mag: 5, rate: 1.0, reload: 1.5, spread: 0.2, pellets: 6, life: 0.7, len: 26, kick: 2.4, big: true, desc: 'Six pellets. Point blank is lethal.' },
@@ -19,10 +19,10 @@ const WEAPONS = [
   { id: 'splitter', name: 'Splitter', price: 1300, mag: 7, rate: 0.6, reload: 1.4, spread: 0.01, split: { t: 0.24, n: 2, a: 0.22 }, len: 20, desc: 'Each round splits into three mid-flight.' },
   { id: 'dual', name: 'Twin Pistols', price: 1400, mag: 18, rate: 0.2, reload: 1.3, spread: 0.02, dual: true, len: 16, desc: 'One in each hand. Click fast.' },
   { id: 'smart', name: 'Seeker', price: 1650, mag: 10, rate: 0.45, reload: 1.3, spread: 0.02, homing: 3.2, life: 3, len: 18, desc: 'Rounds curve toward the nearest enemy.' },
-  { id: 'rifle', name: 'Battle Rifle', price: 1900, mag: 20, rate: 0.22, reload: 1.6, spread: 0.018, pierce: 1, auto: true, len: 30, desc: 'Full auto, rounds pierce once.' },
+  { id: 'rifle', name: 'Battle Rifle', price: 1900, mag: 20, rate: 0.22, reload: 1.6, spread: 0.018, auto: true, len: 30, desc: 'Steady full auto with a tight spread.' },
   { id: 'launcher', name: 'Launcher', price: 2200, mag: 4, rate: 1.0, reload: 2.0, spread: 0, gravity: 900, speedK: 0.85, blast: 115, len: 28, kick: 2.2, big: true, desc: 'Arcing grenades that blow on impact. Mind the splash.' },
   { id: 'minigun', name: 'Minigun', price: 2600, mag: 90, rate: 0.065, reload: 2.4, spread: 0.08, auto: true, spinup: 0.7, heavy: true, len: 30, desc: 'Spins up, then shreds. You move slowly while firing.' },
-  { id: 'railgun', name: 'Railgun', price: 3200, mag: 3, rate: 0.5, reload: 2.0, spread: 0, charge: 0.75, pierce: 99, wallPierce: true, len: 34, kick: 3, big: true, desc: 'Hold to charge, release to fire through walls and everyone.' },
+  { id: 'railgun', name: 'Railgun', price: 3200, mag: 3, rate: 0.5, reload: 2.0, spread: 0, charge: 0.75, dmg: 4, wallPierce: true, len: 34, kick: 3, big: true, desc: 'Hold to charge, release to fire straight through walls. One-shots anything.' },
 ];
 const WEAPON = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 
@@ -91,7 +91,6 @@ const STYLE = {
   air: { label: 'AIRBORNE', pts: 50 },
   slide: { label: 'SLIDE KILL', pts: 60 },
   flip: { label: 'FLIP KILL', pts: 90 },
-  pierce: { label: 'PIERCE', pts: 70 },
   boom: { label: 'BOOM', pts: 60 },
   melee: { label: 'BEATDOWN', pts: 80 },
   last: { label: 'CLEAN', pts: 0 },

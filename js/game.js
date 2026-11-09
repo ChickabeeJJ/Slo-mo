@@ -143,7 +143,8 @@ const Game = (() => {
       e.body.gunId = def.gun;
       enemies.push(e);
     }
-    crates = room.crateDefs.map(c => ({ x: c.x, y: c.y + 16, w: 30, h: 30, vx: 0, vy: 0, rot: 0, vr: 0, grounded: false }));
+    crates = room.crateDefs.map(c => Object.assign(Rigid.make({ x: c.x, y: c.y, a: 0, L: 32, T: 32, density: 3.2, e: 0.12, mu: 0.75 }), { crate: true, sleep: 1 }));
+    room.dyn = [];
     barrels = room.barrelDefs.map(b => ({ x: b.x, y: b.y, w: 30, h: 42, hp: 1, fuse: -1, gone: false, seed: Math.random() * 10 }));
     panes = room.panesDef.map(g => Object.assign({}, g, { broken: false }));
     doorOpen = enemies.length === 0;
@@ -365,16 +366,18 @@ const Game = (() => {
     if (pressed.has('jump')) p.jumpBuf = 0.13;
     if (p.dropT > 0) { p.dropT -= dt; if (p.dropT <= 0) p.dropPlat = null; }
 
-    // ---- slide
-    if (pressed.has('slide')) {
-      if (p.grounded && p.plat && p.plat.kind !== 'ledge' && Math.abs(p.vx) < 60 && Math.abs(mx) < 0.1) { /* stand still on furniture: nothing */ }
-      if (p.grounded && p.plat && Math.abs(p.vx) < 60 && Math.abs(mx) < 0.1) { p.dropPlat = p.plat; p.dropT = 0.3; p.grounded = false; p.y += 2; }
-      else if (p.grounded && p.slideT <= 0 && !p.crawl) {
+    // ---- slide (RMB/S/C, or Shift while moving). In the air it becomes a dive that lands into a slide.
+    const wantSlide = pressed.has('slide') || (pressed.has('shiftSlide') && (Math.abs(p.vx) > 140 || !p.grounded));
+    if (wantSlide) {
+      if (p.grounded && p.plat && Math.abs(p.vx) < 60 && Math.abs(mx) < 0.1 && pressed.has('slide')) { p.dropPlat = p.plat; p.dropT = 0.3; p.grounded = false; p.y += 2; }
+      else if (!p.grounded && !p.airSlide && !p.crawl) {
+        p.airSlide = true; p.flipping = false; p.flip = 0;
         p.slideDir = Math.abs(mx) > 0.1 ? Math.sign(mx) : Math.abs(p.vx) > 40 ? Math.sign(p.vx) : p.facing;
-        p.vx = p.slideDir * clamp(Math.abs(p.vx) * 1.2, SLIDE_V, 700);
-        p.slideT = SLIDE_T; p.h = SLIDE_H;
-        Sfx.slide(); Fx.dust(p.x, p.y, 6);
-      }
+        p.vx = p.slideDir * Math.max(Math.abs(p.vx), 330);
+        p.vy = Math.max(p.vy, 0) + 260;
+        p.h = SLIDE_H;
+        Sfx.slide();
+      } else if (p.grounded && p.slideT <= 0 && !p.crawl) startSlide(p, mx);
     }
     if (p.slideT > 0) {
       p.slideT -= dt;
@@ -390,7 +393,7 @@ const Game = (() => {
       p.vx = p.slideDir * 230;
       if (room.canStand(p, STAND_H, panes)) { p.crawl = false; p.h = STAND_H; }
     }
-    const sliding = p.slideT > 0 || p.crawl;
+    const sliding = p.slideT > 0 || p.crawl || p.airSlide;
 
     // ---- horizontal accel
     if (!sliding) {
@@ -399,14 +402,14 @@ const Game = (() => {
     }
 
     // ---- jump
-    if (p.jumpBuf > 0 && (p.grounded || p.coyote > 0) && !p.crawl) {
+    if (p.jumpBuf > 0 && (p.grounded || p.coyote > 0) && !p.crawl && !p.airSlide) {
       p.jumpBuf = 0; p.coyote = 0;
       p.vy = -JUMP_V;
       if (p.slideT > 0) { p.vx *= 1.05; p.slideT = 0; }
       p.h = STAND_H;
       p.grounded = false;
-      const moving = Math.abs(p.vx) > 330;
-      if (moving && (p.sprinting || sliding)) {
+      // jump while sprinting or sliding (moving fast) = front flip
+      if (Math.abs(p.vx) > 320) {
         p.flipping = true; p.flip = 0; p.flipDir = Math.sign(p.vx) * p.facing;
         Sfx.flip();
       } else Sfx.jump();
@@ -425,9 +428,13 @@ const Game = (() => {
     // ---- physics
     p.vy = Math.min(p.vy + G * dt, 1500);
     const wasAir = !p.grounded;
-    const fallV = p.vy;
+    const fallV = p.vy, fallVx = p.vx;
     const out = room.moveBody(p, dt, panes);
-    if (out.landed && wasAir) {
+    if (out.landed && wasAir && p.airSlide) {
+      p.airSlide = false;
+      startSlide(p, p.slideDir);
+      p.vx = p.slideDir * Math.max(Math.abs(p.vx), Math.abs(fallVx) * 1.05, SLIDE_V);
+    } else if (out.landed && wasAir) {
       Sfx.land(clamp(fallV / 900, 0.3, 1.2));
       if (fallV > 500) Fx.dust(p.x, p.y, 8);
       if (p.flipping) { p.flipping = false; p.flip = 0; }
@@ -442,13 +449,7 @@ const Game = (() => {
       p.stepPh += Math.abs(p.vx) * dt / 15;
       if (p.stepPh > Math.PI) { p.stepPh -= Math.PI; Sfx.step(); }
     }
-    // crates get kicked
-    for (const c of crates) {
-      if (Math.abs(c.x - p.x) < (c.w + p.w) / 2 + 2 && p.y > c.y - c.h - 4 && p.y - p.h < c.y && Math.abs(p.vx) > 40) {
-        c.vx = p.vx * 1.25 + Math.sign(p.vx) * 90; c.vy = -rand(140, 300) * (Math.abs(p.vx) > 300 ? 1.4 : 1); c.vr = Math.sign(p.vx) * rand(6, 12); c.grounded = false;
-        Sfx.crate();
-      }
-    }
+    pushCrates(p);
 
     // ---- weapon
     const pw = p.pickup || p.weapon;
@@ -517,12 +518,49 @@ const Game = (() => {
     p.body.gunId = ww.id;
     p.body.dual = !!ww.dual;
     p.body.pose({
-      x: p.x, y: p.y, facing: p.facing, aim: p.aim, vx: p.vx, vy: p.vy, grounded: p.grounded, slide: sliding, flip: p.flipping ? p.flip * p.flipDir : 0,
+      x: p.x, y: p.y, facing: p.facing, aim: p.aim, vx: p.vx, vy: p.vy, grounded: p.grounded || p.airSlide, slide: sliding, flip: p.flipping ? p.flip * p.flipDir : 0,
       sprint: p.sprinting, gun: true, twoHand: TWO_HAND.has(ww.id), dual: ww.dual, kick: p.weapon.kick, kick2: p.weapon.kick2,
       reload: !p.pickup && p.weapon.reloadT > 0 ? 1 - p.weapon.reloadT / WEAPON[p.weapon.id].reload : 0,
     }, dt);
     if (p.body.flash > 0) p.body.flash -= dt * 4;
     if (p.invuln > 0) p.invuln -= dt;
+  }
+
+  function startSlide(p, mx = 0) {
+    p.slideDir = Math.abs(mx) > 0.1 ? Math.sign(mx) : Math.abs(p.vx) > 40 ? Math.sign(p.vx) : p.facing;
+    p.vx = p.slideDir * clamp(Math.abs(p.vx) * 1.2, SLIDE_V, 720);
+    p.slideT = SLIDE_T; p.h = SLIDE_H;
+    Sfx.slide(); Fx.dust(p.x, p.y, 6);
+  }
+
+  // walking bodies shove crates: the push lands at hip height, so a fast hit tips a crate over
+  function pushCrates(ch) {
+    for (const c of crates) {
+      const ex = Rigid.extent(c);
+      if (ch.y <= c.y - ex.hh + 4 || ch.y - ch.h >= c.y + ex.hh) continue;      // standing on it, or clear above/below
+      const dx = c.x - ch.x, over = ex.hw + ch.w / 2 - Math.abs(dx);
+      if (over <= 0) continue;
+      const dir = Math.sign(dx) || 1;
+      c.x += dir * over * 0.55; ch.x -= dir * over * 0.45;
+      const into = ch.vx * dir;
+      if (into > 0) {
+        const hy = clamp(ch.y - (ch.slideT > 0 || ch.crawl ? 14 : 44), c.y - ex.hh + 3, c.y + ex.hh - 3);
+        const dv = ch.vx - c.vx;
+        if (dv * dir > 0) Rigid.impulse(c, c.x - dir * ex.hw, hy, dv * c.m * (into > 380 ? 0.9 : 0.45), into > 380 ? -c.m * 90 : 0);
+        ch.vx *= ch.slideT > 0 ? 0.92 : 0.8;
+        if (into > 330 && (c.kickT || 0) < clock - 0.3) { c.kickT = clock; Sfx.crate(); }
+      }
+    }
+  }
+  // tops of upright crates act as platforms
+  function cratePlats() {
+    const out = [];
+    for (const c of crates) {
+      if (Math.abs(Math.sin(2 * c.a)) > 0.25) continue;
+      const ex = Rigid.extent(c);
+      out.push({ x1: c.x - ex.hw + 1, x2: c.x + ex.hw - 1, y: c.y - ex.hh, kind: 'crate', crate: c, th: 0 });
+    }
+    return out;
   }
 
   function startReload() {
@@ -546,8 +584,8 @@ const Game = (() => {
       const a = c.aim + (pellets > 1 ? (i / (pellets - 1) - 0.5) * w.spread * 2 + rand(-0.03, 0.03) : rand(-1, 1) * w.spread * spreadK);
       const sp = BULLET_SPEED * (w.speedK || 1);
       bullets.push({
-        x: mz.x, y: mz.y, ox: mz.x, oy: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, owner: 'p', pierce: w.pierce || 0, life: w.life || 2.4, t: 0, hits: [], shooter: c,
-        big: !!w.big, kind: w.id, bounce: w.bounce || 0, homing: w.homing || 0, g: w.gravity || 0, blast: w.blast || 0, split: w.split || null, wallPierce: !!w.wallPierce,
+        x: mz.x, y: mz.y, ox: mz.x, oy: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, owner: 'p', pierce: 0, life: w.life || 2.4, t: 0, hits: [], shooter: c,
+        big: !!w.big, kind: w.id, dmg: w.dmg || 1, bounce: w.bounce || 0, homing: w.homing || 0, g: w.gravity || 0, blast: w.blast || 0, split: w.split || null, wallPierce: !!w.wallPierce,
       });
     }
     if (second) c.weapon.kick2 = (w.kick || 1); else c.weapon.kick = (w.kick || 1);
@@ -678,6 +716,7 @@ const Game = (() => {
     const wasAir = !e.grounded;
     const out = room.moveBody(e, dt, panes);
     e.blocked = !!out.wall;
+    pushCrates(e);
     if (out.pane && Math.abs(e.vx) > 100) breakPane(out.pane, e.vx);
     if (out.landed && wasAir) Fx.dust(e.x, e.y, 4);
     const melee = d.melee && e.meleeT >= 0 ? clamp(e.meleeT / 0.35, 0, 1) : null;
@@ -794,14 +833,19 @@ const Game = (() => {
         // corpses and loose blocks get shoved
         for (const cb of corpses) if (Math.abs(cb.pts[J.PELVIS].x - nx) < 60 && Math.abs(cb.pts[J.PELVIS].y - ny) < 70) cb.push(nx, ny, ux * 500, uy * 500, 22);
         for (const pc of pieces) {
-          const mx = (pc.a.x + pc.b.x) / 2, my = (pc.a.y + pc.b.y) / 2;
-          if (Math.abs(mx - nx) < 16 && Math.abs(my - ny) < 16) {
-            const h = 1 / 120;
-            for (const q of [pc.a, pc.b]) { q.px -= ux * 260 * h; q.py -= (uy * 260 - 200) * h; }
-            wakePiece(pc);
-          }
+          if ((pc.hitBy === b) || Math.abs(pc.x - nx) > 26 || Math.abs(pc.y - ny) > 26 || !Rigid.contains(pc, nx, ny, 3)) continue;
+          pc.hitBy = b;
+          Rigid.impulse(pc, nx, ny, ux * pc.m * 380, uy * pc.m * 380 - pc.m * 140);
         }
-        for (const c of crates) if (Math.abs(c.x - nx) < 17 && ny > c.y - c.h - 2 && ny < c.y + 2) { c.vx += ux * 160; c.vy -= 160; c.vr += sign(ux) * 8; c.grounded = false; Fx.chips(nx, ny, b.vx, b.vy, '#c9a477', 4); }
+        // crates are cover: a round thumps into the wood and shoves it
+        for (const c of crates) {
+          if (Math.abs(c.x - nx) > 30 || Math.abs(c.y - ny) > 30 || !Rigid.contains(c, nx, ny, 1)) continue;
+          Rigid.impulse(c, nx, ny, ux * c.m * (b.big ? 260 : 150), uy * c.m * 150 - c.m * 40);
+          Fx.chips(nx, ny, -b.vx, -b.vy, '#c9a477', 5); Sfx.crate();
+          if (b.blast) { explode(nx, ny, b.blast, b.owner === 'p'); alive = false; break; }
+          if (!b.wallPierce) { alive = false; break; }
+        }
+        if (!alive) break;
         for (const br of barrels) if (!br.gone && Math.abs(br.x - nx) < 16 && ny > br.y - br.h && ny < br.y) {
           if (b.blast) { explode(nx, ny, b.blast, b.owner === 'p'); alive = false; break; }
           lightBarrel(br, b.owner === 'p', ux);
@@ -852,8 +896,8 @@ const Game = (() => {
 
   function hitEnemy(e, b, h, x, y) {
     const head = h.head;
-    const dmg = head ? 2 : 1;
-    e.hp -= e.def.armor && !head ? 1 : dmg;
+    const base = b.dmg || 1, dmg = head ? base * 2 : base;
+    e.hp -= dmg;
     e.alert = true; if (e.reactT > 0.15) e.reactT = 0.15;
     Fx.chips(x, y, b.vx, b.vy, '#e2434b', head ? 10 : 6);
     if (e.hp > 0) {
@@ -864,7 +908,7 @@ const Game = (() => {
       Fx.sparks(x, y, Math.atan2(-b.vy, -b.vx), 6, '#ffffff', 300);
       return;
     }
-    const info = { head, pierce: b.hits.length > 1, boom: false, crossfire: b.owner === 'e' };
+    const info = { head, boom: false, crossfire: b.owner === 'e' };
     const sp = Math.hypot(b.vx, b.vy) || 1, k = b.kind === 'railgun' ? 1700 : b.big ? 1250 : 950;
     killEnemy(e, b.vx / sp * k, b.vy / sp * k - 170, h.idx, info);
   }
@@ -901,7 +945,6 @@ const Game = (() => {
       if (p.flipping) { tags.push(STYLE.flip.label); pts += STYLE.flip.pts; track('flipKills'); }
       else if (!p.grounded) { tags.push(STYLE.air.label); pts += STYLE.air.pts; track('airKills'); }
       if (p.slideT > 0 || p.crawl) { tags.push(STYLE.slide.label); pts += STYLE.slide.pts; track('slideKills'); }
-      if (info.pierce) { tags.push(STYLE.pierce.label); pts += STYLE.pierce.pts; }
     }
     if (ts < 0.6) track('slowKills');
     if (clock - lastKillT < 0.45) { multiCount++; if (multiCount === 1) { tags.push('MULTI KILL'); pts += 100; track('multis'); } } else multiCount = 0;
@@ -981,8 +1024,8 @@ const Game = (() => {
     }
     if (player.alive) { const d = dist(player.x, player.y - 46, x, y); if (d < R - 25) { const a = Math.atan2(player.y - 46 - y, player.x - x); killPlayer(Math.cos(a) * 1000, Math.sin(a) * 1000 - 500, null, J.PELVIS); } }
     for (const cb of corpses) pushRadial(cb.pts, x, y, R + 40, 1300);
-    for (const pc of pieces) { pushRadial([pc.a, pc.b], x, y, R + 60, 1300); wakePiece(pc); }
-    for (const c of crates) { const d = dist(c.x, c.y - 15, x, y); if (d < R + 40) { const a = Math.atan2(c.y - 15 - y, c.x - x); c.vx += Math.cos(a) * 900; c.vy += Math.sin(a) * 900 - 300; c.vr += rand(-20, 20); c.grounded = false; } }
+    for (const pc of pieces) Rigid.blast(pc, x, y, R + 70, 1300);
+    for (const c of crates) Rigid.blast(c, x, y, R + 50, 950);
     for (const g of panes) if (!g.broken && Math.abs(g.x - x) < R && y > g.y - 40 && y < g.y + g.h + 40) breakPane(g, g.x - x);
     for (const o of barrels) if (!o.gone && dist(o.x, o.y - 20, x, y) < R + 30) { if (o.fuse < 0) lightBarrel(o, byPlayer); o.fuse = Math.min(o.fuse, 0.12); }
     for (const g of pickups) { g.vx += (g.x - x) * 4; g.vy -= 400; }
@@ -1011,17 +1054,13 @@ const Game = (() => {
       if (!cb.broken && cb.deadT > cb.breakAt) { pieces.push(...cb.breakApart()); Sfx.crumble(); Fx.dust(cb.pts[J.PELVIS].x, cb.pts[J.PELVIS].y, 6, '#ffffff'); }
     }
     corpses = corpses.filter(cb => !cb.broken);
-    for (const pc of pieces) simPiece(pc, dt, room, panes);
+    room.dyn = cratePlats();
+    const plats = room.platforms.concat(room.dyn);
     if (pieces.length > 260) pieces.splice(0, pieces.length - 260);
-    // crates
+    Rigid.stepAll(crates.concat(pieces), dt, room, panes, plats);
+    for (const pc of pieces) simPiece(pc, dt);
     for (const c of crates) {
-      c.vy = Math.min(c.vy + G * dt, 1500);
-      if (c.grounded) c.vx = approach(c.vx, 0, 900 * dt), c.vr = approach(c.vr, 0, 20 * dt);
-      const out = room.moveBody(c, dt, panes);
-      if (out.wall) c.vx = -c.vx * 0.3;
-      if (out.landed && Math.abs(c.vy) < 1) { c.vr *= 0.5; Sfx.thud(0.5); }
-      c.rot += c.vr * dt;
-      if (c.grounded) c.rot = lerp(c.rot, Math.round(c.rot / (Math.PI / 2)) * (Math.PI / 2), 1 - Math.exp(-10 * dt));
+      if (c.hit > 180 && (c.thudT || 0) < c.life - 0.15) { c.thudT = c.life; Sfx.crate(); if (c.hit > 400) Fx.dust(c.x, c.y + 14, 4, room.theme.side, 0.6); }
     }
     // dropped guns
     for (const g of pickups) {
@@ -1246,13 +1285,16 @@ const Game = (() => {
     }
   }
   function drawCrate(c) {
-    const s = c.w / 2, cy = c.y - s, co = Math.cos(c.rot), si = Math.sin(c.rot);
-    const P = (a, b) => [c.x + a * co - b * si, cy + a * si + b * co];
-    const col = room.theme.dark ? '#7a6a55' : '#d9c4a0';
-    prism(ctx, [P(-s, -s), P(s, -s), P(s, s), P(-s, s)], ZP - 0.06, ZP + 0.06, col, shade(col, 0.15), shade(col, -0.15));
-    ctx.strokeStyle = shade(col, -0.25); ctx.lineWidth = 1.5;
-    ctx.beginPath(); const a = P(-s + 3, -s + 3), b = P(s - 3, s - 3), q = P(s - 3, -s + 3), r = P(-s + 3, s - 3);
-    ctx.moveTo(a[0], a[1]); ctx.lineTo(q[0], q[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(r[0], r[1]); ctx.closePath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    const th = room.theme;
+    const mat = crateMaterial(th);
+    prism(ctx, Rigid.corners(c), ZP - 0.075, ZP + 0.075, mat.base, shade(mat.base, 0.14), shade(mat.base, -0.16), shade(mat.base, -0.26));
+    // the art sits on the near face of the box
+    const V = View.V, k = View.k(ZP - 0.075);
+    ctx.save();
+    ctx.translate(V.x, V.y); ctx.scale(k, k); ctx.translate(-V.x, -V.y);
+    ctx.translate(c.x, c.y); ctx.rotate(c.a);
+    drawCrateFace(ctx, c.L, mat);
+    ctx.restore();
   }
   function drawBarrel(br) {
     const w = br.w, h = br.h;
@@ -1315,10 +1357,13 @@ const Game = (() => {
     const g = player.nearPickup;
     if (!g || !player.alive || state !== 'play') return;
     const x = g.x, y = g.y - 34;
-    ctx.fillStyle = 'rgba(14,16,24,0.85)';
-    ctx.beginPath(); ctx.roundRect(x - 44, y - 13, 88, 24, 5); ctx.fill();
-    ctx.fillStyle = '#ffffff'; ctx.font = '800 11px Rubik, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText((input.touch ? 'GRAB ' : 'E  ') + WEAPON[g.id].name.toUpperCase(), x, y);
+    const label = (input.touch ? 'GRAB: ' : 'E: ') + WEAPON[g.id].name.toUpperCase();
+    ctx.font = '800 11px Rubik, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(label).width + 24;
+    ctx.fillStyle = 'rgba(14,16,24,0.88)';
+    ctx.beginPath(); ctx.roundRect(x - w / 2, y - 12, w, 24, 5); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(label, x, y + 0.5);
   }
 
   function drawOverlays() {

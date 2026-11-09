@@ -154,7 +154,7 @@ const UI = (() => {
     const own = Save.owns(armoryTab, it.id), eq = equipped(armoryTab) === it.id;
     let stats = '';
     if (armoryTab === 'weapon') {
-      const dmg = (it.pellets || 1) * (1 + (it.pierce || 0) * 0.5);
+      const dmg = (it.pellets || 1) * (it.dmg || 1) * (it.blast ? 3 : 1);
       stats = `<div class="stats">
         <span>POWER</span><i style="--v:${Math.min(100, dmg / 6 * 100)}%"></i>
         <span>FIRE RATE</span><i style="--v:${clamp((1.1 - it.rate / (it.burst ? it.burst : 1)) / 1.05 * 100, 4, 100)}%"></i>

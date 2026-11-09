@@ -121,7 +121,8 @@ kbd { display: inline-block; font-family: var(--font); font-weight: 800; font-si
   content: ''; position: absolute; top: 0; bottom: 0; left: 100%; width: clamp(200px, 30vw, 520px); pointer-events: none; z-index: -1;
   background: linear-gradient(90deg, rgba(9, 11, 17, 0.97) 0%, rgba(9, 11, 17, 0.86) 22%, rgba(9, 11, 17, 0.58) 50%, rgba(9, 11, 17, 0.22) 78%, rgba(9, 11, 17, 0) 100%);
 }
-.home-menu .btn.big { min-height: 72px; font-size: 32px; }
+.home-menu .btn.big { min-height: 72px; font-size: 32px; justify-content: flex-start; padding-left: 24px; text-align: left; }
+.home-menu .btn.tile { justify-content: flex-start; padding-left: 18px; gap: 10px; }
 .home-menu .btn-row .btn { min-height: 62px; font-size: 14px; }
 .title { display: flex; align-items: flex-end; gap: 10px; line-height: 0.9; font-weight: 900; letter-spacing: -0.01em; }
 .title .t1 { font-size: 72px; color: #fff; }
