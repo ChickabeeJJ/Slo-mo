@@ -561,11 +561,11 @@ const Game = (() => {
       if (p.slideT > 0) { p.vx *= 1.05; p.slideT = 0; }
       p.h = STAND_H;
       p.grounded = false;
-      // jump while sprinting or sliding (moving fast) = front flip. Flips can be chained by
-      // jumping again right as you land, up to FLIP_CHAIN in a row; a kill during a flip earns
+      // jump while sprinting or sliding (moving fast) = front flip. Flips chain from one jump to the
+      // next, up to FLIP_CHAIN in a row; a kill during a flip earns
       // another one, and half a second on the ground resets the chain.
-      const chained = (p.groundT || 0) < 0.3 && (p.flipChain || 0) > 0;
-      if (!chained) p.flipChain = 0;
+      // the chain only resets after half a second on the ground (see the air timer below)
+      p.flipChain = p.flipChain || 0;
       if (Math.abs(p.vx) > 320 && p.flipChain < FLIP_CHAIN) {
         p.flipping = true; p.flip = 0; p.flipDir = Math.sign(p.vx) * p.facing;
         p.flipChain++;
