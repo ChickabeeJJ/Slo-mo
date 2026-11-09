@@ -1,17 +1,21 @@
 'use strict';
 /* =========================================================================
-   Audio: every sound is synthesized with WebAudio (no files).
+   Audio: sound effects are synthesized with WebAudio. The music is the
+   "Sector Breach" track (assets/audio), streamed and routed through the same
+   music bus at 50% volume; a synth loop stands in if the file can't play.
    Slow motion runs the whole mix through a low-pass filter, drops the pitch
-   of new sounds and literally slows the music's tempo.
+   of new sounds and literally slows the music down.
    ========================================================================= */
 
 const Sfx = (() => {
   let ac = null, master = null, slowFilter = null, sfxBus = null, musicBus = null, noiseBuf = null;
   let sfxOn = true, musicOn = true, musicPaused = true, adMuted = false, platMuted = false;
   let pitch = 1, timeScale = 1, musicTimer = null, mstep = 0, nextAt = 0, intensity = 0, musicTarget = 0;
+  const TRACK_URL = 'assets/audio/sector-breach.mp3', TRACK_VOL = 0.5;
+  let track = null, trackOk = false;
 
   function ensure() {
-    if (ac) { if (ac.state === 'suspended') ac.resume(); return true; }
+    if (ac) { if (ac.state === 'suspended') ac.resume().then(playTrack, () => {}); else playTrack(); return true; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
     ac = new AC();
@@ -26,8 +30,30 @@ const Sfx = (() => {
     noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
     const d = noiseBuf.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    startMusic();
+    startTrack();
     return true;
+  }
+
+  // the music file: an <audio> element feeding the music bus (so slow-mo filters and slows it)
+  function startTrack() {
+    try {
+      track = new Audio(TRACK_URL);
+      track.loop = true; track.preload = 'auto'; track.crossOrigin = 'anonymous';
+      if ('preservesPitch' in track) track.preservesPitch = false;
+      else if ('webkitPreservesPitch' in track) track.webkitPreservesPitch = false;
+      const src = ac.createMediaElementSource(track);
+      const g = ac.createGain(); g.gain.value = TRACK_VOL;
+      src.connect(g); g.connect(musicBus);
+      track.addEventListener('error', () => { trackOk = false; startMusic(); });
+      trackOk = true;
+      playTrack();
+    } catch (e) { track = null; trackOk = false; startMusic(); }
+  }
+  function playTrack() {
+    if (!track || !trackOk) return;
+    const want = musicOn && !musicPaused && !adMuted && !platMuted && ac && ac.state === 'running';
+    if (want && track.paused) { const p = track.play(); if (p && p.catch) p.catch(() => {}); }
+    else if (!want && !track.paused) track.pause();
   }
 
   function env(g, t, a, peak, dcy) {
@@ -222,12 +248,14 @@ const Sfx = (() => {
     const t = ac.currentTime;
     const music = musicOn && !musicPaused && !adMuted && !platMuted;
     sfxBus.gain.setTargetAtTime(sfxOn && !adMuted && !platMuted ? 0.6 : 0, t, 0.05);
-    musicBus.gain.setTargetAtTime(music ? 0.32 : 0, t, 0.3);
+    musicBus.gain.setTargetAtTime(music ? (trackOk ? 1 : 0.32) : 0, t, 0.3);
+    playTrack();
   }
   // world time scale: 1 normal, ~0.25 in slow motion
   function setTime(ts) {
     timeScale = ts;
     pitch = lerp(0.62, 1, clamp((ts - 0.2) / 0.8, 0, 1));
+    if (track && trackOk) { const r = lerp(0.72, 1, clamp((ts - 0.2) / 0.8, 0, 1)); if (Math.abs(track.playbackRate - r) > 0.01) track.playbackRate = r; }
     if (slowFilter) slowFilter.frequency.setTargetAtTime(ts > 0.95 ? 20000 : lerp(700, 9000, clamp((ts - 0.2) / 0.8, 0, 1)), ac.currentTime, 0.05);
   }
   function setIntensity(v) { musicTarget = clamp(v, 0, 1); }
@@ -236,11 +264,16 @@ const Sfx = (() => {
   function setMusicPaused(p) { musicPaused = !!p; applyGains(); }
   function setAdMuted(m) { adMuted = m; applyGains(); }
   function setPlatformMute(m) { platMuted = m; applyGains(); }
-  function suspend(s) { if (ac) s ? ac.suspend() : ac.resume(); }
+  function suspend(s) {
+    if (!ac) return;
+    if (s) { ac.suspend(); if (track && !track.paused) track.pause(); }
+    else ac.resume().then(playTrack, () => {});
+  }
 
   return {
     ensure, shot, enemyShot, spin, charged, split, fuse, alarm, smash, growl, beep, appear, dry, reload, shell, whiz, ricochet, wallHit, deflect, laser, hit, armor, crumble, thud, hurtPlayer, swing,
     glass, boom, crate, step, jump, land, slide, flip, slowIn, slowOut, heartbeat, door, clear, click, coin, star, combo, win, lose,
     unlock, denied, setTime, setIntensity, setSfx, setMusic, setMusicPaused, setAdMuted, setPlatformMute, suspend,
+    get track() { return track ? { ok: trackOk, paused: track.paused, time: +track.currentTime.toFixed(2), rate: track.playbackRate } : null; },
   };
 })();

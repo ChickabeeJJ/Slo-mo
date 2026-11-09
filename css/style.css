@@ -29,6 +29,9 @@
   --safe-r: env(safe-area-inset-right, 0px);
   --cut-s: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
   --cut-m: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  /* a 2px outline that follows --cut-m's slanted corners (box-shadow can't: clip-path cuts it off) */
+  --ring-m: polygon(evenodd, 10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px, 10px 0,
+    10.83px 2px, calc(100% - 2px) 2px, calc(100% - 2px) calc(100% - 10.83px), calc(100% - 10.83px) calc(100% - 2px), 2px calc(100% - 2px), 2px 10.83px, 10.83px 2px);
   --cut-l: polygon(16px 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%, 0 16px);
 }
 
@@ -220,7 +223,10 @@ body.dark-room .hud-mid { color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); 
 .focus .ic { width: 22px; height: 22px; color: var(--blue); }
 .focus-track { width: 180px; height: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
 .focus-fill { height: 100%; width: 100%; background: linear-gradient(90deg, #5a8cc2, #9fd0ff); transform-origin: left; border-radius: 5px; }
-.focus.on { box-shadow: inset 0 0 0 2px var(--blue); }
+.focus { position: relative; }
+.focus::after, .ammo::after { content: ''; position: absolute; inset: 0; clip-path: var(--ring-m); background: var(--blue); opacity: 0; pointer-events: none; transition: opacity .15s; }
+.focus.on::after { opacity: 1; }
+.ammo::after { background: var(--acc); }
 .focus.on .focus-fill { background: linear-gradient(90deg, #8fd0ff, #ffffff); }
 .focus.empty .focus-fill { background: #ff8a94; }
 
@@ -424,7 +430,9 @@ body.touch .hud-bl { bottom: auto; top: calc(66px + var(--safe-t)); transform: s
 @keyframes flipPop { 0% { transform: skewX(-14deg) scale(.7); } 60% { transform: skewX(-14deg) scale(1.25); filter: brightness(1.4); } 100% { transform: skewX(-14deg) scale(1); } }
 @keyframes flipShake { 0%, 100% { translate: 0; } 25% { translate: -3px; } 75% { translate: 3px; } }
 .ammo.flash { animation: ammoFlash .5s ease-out; }
-@keyframes ammoFlash { 0% { box-shadow: inset 0 0 0 2px var(--acc); filter: brightness(1.5); } 100% { box-shadow: inset 0 0 0 2px transparent; filter: none; } }
+.ammo.flash::after { animation: ammoRing .5s ease-out; }
+@keyframes ammoFlash { 0% { filter: brightness(1.5); } 100% { filter: none; } }
+@keyframes ammoRing { 0% { opacity: 1; } 100% { opacity: 0; } }
 
 /* hover (or tap) an ability name to see what it does */
 .stats em.ab { position: relative; cursor: help; text-decoration: underline dotted rgba(143, 208, 255, 0.6); text-underline-offset: 3px; }

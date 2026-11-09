@@ -514,8 +514,8 @@ const Game = (() => {
     if (pressed.has('jump')) p.jumpBuf = 0.13;
     if (p.dropT > 0) { p.dropT -= dt; if (p.dropT <= 0) p.dropPlat = null; }
 
-    // ---- slide (RMB/S/C, or Shift while moving). In the air it becomes a dive that lands into a slide.
-    const wantSlide = pressed.has('slide') || (pressed.has('shiftSlide') && (Math.abs(p.vx) > 140 || !p.grounded));
+    // ---- slide (RMB/S/C or Shift; from a standstill you dash the way you face). In the air it becomes a dive that lands into a slide.
+    const wantSlide = pressed.has('slide') || pressed.has('shiftSlide');
     if (wantSlide) {
       if (p.grounded && p.plat && Math.abs(p.vx) < 60 && Math.abs(mx) < 0.1 && pressed.has('slide')) { p.dropPlat = p.plat; p.dropT = 0.3; p.grounded = false; p.y += 2; }
       else if (!p.grounded && p.airT > 0.06 && !p.airSlide && !p.crawl) {

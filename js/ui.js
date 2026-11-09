@@ -16,6 +16,8 @@ const UI = (() => {
   /* -------------------------------------------------------------- init */
   function init() {
     Icons.hydrate();
+    // logging in or out on CrazyGames swaps the cloud save: reload it and redraw the menu
+    Platform.onAuth(() => { Save.load(); if (screen !== null) show(screen); });
     // home
     $('btnPlay').onclick = () => { click(); play(Save.nextLevel()); };
     $('btnLevels').onclick = () => { click(); chapter = Math.floor(Save.nextLevel() / LEVELS_PER_CHAPTER); show('levels'); };
@@ -460,7 +462,6 @@ const UI = (() => {
     if (endlessRuns % 2 === 1) Platform.maybeMidgame(showIt); else showIt();
   }
   function openEndlessResults(r, coins) {
-    if (r.isBest) Platform.happytime();
     openModal('endless', `
       <h2 class="${r.isBest ? 'win' : ''}">${r.isBest ? 'NEW BEST!' : 'RUN OVER'}</h2>
       <p class="sub">ENDLESS</p>
@@ -490,7 +491,7 @@ const UI = (() => {
     Save.addCoins(coins);
     Platform.gameplayStop();
     levelsThisSession++;
-    if (r.stars === 3 || getLevel(r.level).boss) Platform.happytime();
+    if (getLevel(r.level).boss) Platform.happytime();      // happytime is saved for beating a boss level
     const showIt = () => openResults(r, coins, first, rec);
     if (levelsThisSession % 2 === 0) Platform.maybeMidgame(showIt); else setTimeout(showIt, 650);
   }
