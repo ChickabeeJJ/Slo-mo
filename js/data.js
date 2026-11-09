@@ -11,7 +11,7 @@
 const BULLET_SPEED = 900;
 const WEAPONS = [
   { id: 'pistol', name: 'Pistol', price: 0, mag: 9, rate: 0.34, reload: 1.1, spread: 0.012, len: 16, desc: 'Reliable. Fast reload.' },
-  { id: 'revolver', name: 'Hand Cannon', price: 350, mag: 6, rate: 0.7, reload: 1.4, spread: 0, dmg: 2, len: 20, kick: 1.8, big: true, desc: 'Double damage: cracks Juggernaut armour in two hits.' },
+  { id: 'revolver', name: 'Hand Cannon', price: 350, mag: 6, rate: 0.7, reload: 1.4, spread: 0, dmg: 2, len: 20, kick: 1.8, big: true, desc: 'Double damage: drops a Juggernaut or Brute in one hit.' },
   { id: 'smg', name: 'SMG', price: 700, mag: 26, rate: 0.13, reload: 1.4, spread: 0.06, auto: true, len: 20, desc: 'Hold to spray.' },
   { id: 'burst', name: 'Burst Rifle', price: 850, mag: 21, rate: 0.75, reload: 1.5, spread: 0.02, burst: 3, burstGap: 0.08, len: 26, desc: 'Three-round burst on every click.' },
   { id: 'shotgun', name: 'Shotgun', price: 1000, mag: 5, rate: 1.0, reload: 1.5, spread: 0.2, pellets: 6, life: 0.7, len: 26, kick: 2.4, big: true, desc: 'Six pellets. Point blank is lethal.' },
@@ -33,14 +33,15 @@ const ENEMIES = {
   smg: { name: 'Sprayer', hp: 1, gun: 'smg', react: 0.66, aim: 0.38, cd: [1.4, 1.9], speed: 850, burst: 4, burstGap: 0.09, spread: 0.07, turn: 2.8, walk: 95, scale: 1 },
   shotgun: { name: 'Breacher', hp: 1, gun: 'shotgun', react: 0.55, aim: 0.45, cd: [1.4, 1.8], speed: 800, burst: 1, pellets: 5, spread: 0.22, life: 0.55, turn: 3, walk: 150, advance: true, scale: 1.04 },
   rifle: { name: 'Marksman', hp: 1, gun: 'rifle', react: 0.75, aim: 1.05, cd: [2.0, 2.6], speed: 1750, burst: 1, spread: 0, turn: 2.0, walk: 0, laser: true, scale: 1 },
-  heavy: { name: 'Juggernaut', hp: 4, gun: 'smg', react: 0.7, aim: 0.5, cd: [1.6, 2.1], speed: 820, burst: 6, burstGap: 0.08, spread: 0.08, turn: 2.2, walk: 60, scale: 1.28, armor: true },
+  // big but fair: two body hits (a headshot or a Hand Cannon round drops it in one), short slow bursts
+  heavy: { name: 'Juggernaut', hp: 2, gun: 'smg', react: 0.8, aim: 0.6, cd: [2.0, 2.6], speed: 760, burst: 3, burstGap: 0.12, spread: 0.1, turn: 1.9, walk: 60, scale: 1.28, armor: true },
   knife: { name: 'Blade', hp: 1, gun: null, react: 0.4, walk: 330, scale: 0.97, melee: true },
   // riot shield: blocks rounds from the front; head is exposed, the back is open, explosions and the railgun go through
   shield: { name: 'Riot', hp: 1, gun: 'pistol', react: 0.7, aim: 0.5, cd: [1.4, 1.9], speed: 850, burst: 1, spread: 0.04, turn: 2.4, walk: 75, scale: 1.05, advance: true, shield: true, hat: 'riot' },
   // lobs grenades at where you stand; the blast zone is marked on the floor and you can shoot them out of the air
   grenadier: { name: 'Grenadier', hp: 1, gun: null, react: 0.8, cd: [2.4, 3.1], walk: 70, scale: 1, grenadier: true, hat: 'olive' },
   // big and tough: winds up, then charges in a straight line; jump over it, or make it hit a wall and stun itself
-  brute: { name: 'Brute', hp: 3, gun: null, react: 0.5, walk: 105, scale: 1.32, brute: true, color: '#c4343d', dark: '#8f2229' },
+  brute: { name: 'Brute', hp: 2, gun: null, react: 0.5, walk: 105, scale: 1.32, brute: true, color: '#c4343d', dark: '#8f2229' },
 };
 const ENEMY_CHARS = { e: 'grunt', m: 'smg', s: 'shotgun', r: 'rifle', h: 'heavy', k: 'knife', i: 'shield', n: 'grenadier', y: 'brute' };
 

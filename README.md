@@ -21,7 +21,7 @@ To play, serve the folder (for example `python3 -m http.server`) and open `index
 | Weapon | Gimmick |
 | --- | --- |
 | Pistol | Reliable, fast reload |
-| Hand Cannon | Double damage: cracks Juggernaut armour in two hits |
+| Hand Cannon | Double damage: drops a Juggernaut or Brute in one hit |
 | SMG | Hold to spray |
 | Burst Rifle | Three-round burst per click |
 | Shotgun | Six-pellet spread |
@@ -44,10 +44,10 @@ Shot barrels fizz and flash for a moment before exploding, and explosions chain 
 | Sprayer | `m` | SMG bursts |
 | Breacher | `s` | Shotgun spread, advances on you |
 | Marksman | `r` | Long laser telegraph, very fast round |
-| Juggernaut | `h` | Armour: 4 body hits or 2 headshots, long bursts |
+| Juggernaut | `h` | Big: 2 body hits or 1 headshot, short slow SMG bursts |
 | Riot | `i` | Front shield stops rounds; head is exposed, back is open, explosions and the Railgun go through |
 | Grenadier | `n` | Lobs grenades at where you stand; the blast zone is marked on the floor and you can shoot grenades out of the air |
-| Brute | `y` | Big, three hits. Winds up, then charges in a straight line: jump over it, or make it hit a wall and stun itself |
+| Brute | `y` | Big, two hits (one headshot). Winds up, then charges in a straight line: jump over it, or make it hit a wall and stun itself |
 | Blade | `k` | No gun. Sprints and jumps after you, slashes up close |
 
 Lowercase map chars face the player's side. UPPERCASE ones face away until they hear a shot.
