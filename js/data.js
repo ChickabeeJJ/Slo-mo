@@ -35,8 +35,14 @@ const ENEMIES = {
   rifle: { name: 'Marksman', hp: 1, gun: 'rifle', react: 0.75, aim: 1.05, cd: [2.0, 2.6], speed: 1750, burst: 1, spread: 0, turn: 2.0, walk: 0, laser: true, scale: 1 },
   heavy: { name: 'Juggernaut', hp: 4, gun: 'smg', react: 0.7, aim: 0.5, cd: [1.6, 2.1], speed: 820, burst: 6, burstGap: 0.08, spread: 0.08, turn: 2.2, walk: 60, scale: 1.28, armor: true },
   knife: { name: 'Blade', hp: 1, gun: null, react: 0.4, walk: 330, scale: 0.97, melee: true },
+  // riot shield: blocks rounds from the front; head is exposed, the back is open, explosions and the railgun go through
+  shield: { name: 'Riot', hp: 1, gun: 'pistol', react: 0.7, aim: 0.5, cd: [1.4, 1.9], speed: 850, burst: 1, spread: 0.04, turn: 2.4, walk: 75, scale: 1.05, advance: true, shield: true, hat: 'riot' },
+  // lobs grenades at where you stand; the blast zone is marked on the floor and you can shoot them out of the air
+  grenadier: { name: 'Grenadier', hp: 1, gun: null, react: 0.8, cd: [2.4, 3.1], walk: 70, scale: 1, grenadier: true, hat: 'olive' },
+  // big and tough: winds up, then charges in a straight line; jump over it, or make it hit a wall and stun itself
+  brute: { name: 'Brute', hp: 3, gun: null, react: 0.5, walk: 105, scale: 1.32, brute: true, color: '#c4343d', dark: '#8f2229' },
 };
-const ENEMY_CHARS = { e: 'grunt', m: 'smg', s: 'shotgun', r: 'rifle', h: 'heavy', k: 'knife' };
+const ENEMY_CHARS = { e: 'grunt', m: 'smg', s: 'shotgun', r: 'rifle', h: 'heavy', k: 'knife', i: 'shield', n: 'grenadier', y: 'brute' };
 
 // Player colours. The enemies are always red, so no skin is red.
 const SKINS = [

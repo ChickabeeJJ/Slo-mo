@@ -9,7 +9,7 @@
      q  potted plant     w  water cooler        u  pallet stack (2 wide)   v  server rack
      C  kickable crate   O  explosive barrel    G  glass pane (stack vertically)
      l  light panel      P  player spawn        D  exit door
-     e m s r h k  enemies: gunman, sprayer, breacher, marksman, juggernaut, blade
+     e m s r h k i n y  enemies: gunman, sprayer, breacher, marksman, juggernaut, blade, riot, grenadier, brute
                   (lowercase faces the player's side, UPPERCASE faces away)
 
    Text on the back wall: [tileX, tileY, key] with keys from TUTORIAL_TEXT.
@@ -22,7 +22,7 @@ const TUTORIAL_TEXT = {
   jump: ['SPACE to jump', 'Tap JUMP or flick\nthe left stick up'],
   flip: ['Jump while sprinting\nor sliding to flip', 'Push the stick all the way,\nthen JUMP to flip'],
   slide: ['SHIFT or RIGHT CLICK\nto slide', 'Tap SLIDE or flick\nthe left stick down'],
-  shoot: ['CLICK to shoot', 'Hold the red stick to fire.\nDrag it to aim'],
+  shoot: ['CLICK to shoot', 'Tap anywhere\nto shoot that way'],
   slow: ['Press Q to\nslow time', 'Tap SLOW\nto slow time'],
   dodge: ['Slide or jump\nunder bullets', 'Slide or jump\nunder bullets'],
   glass: ['Glass breaks.\nSo do they.', 'Glass breaks.\nSo do they.'],
@@ -71,7 +71,7 @@ const HAND_LEVELS = [
           '#................................#',
           '#.P........B..........T.......D..#',
           '##################################',
-        ], text: [[6.5, 2.4, 'sprint'], [16, 2.4, 'jump'], [26, 2.4, 'flip']],
+        ], text: [[7.5, 2.4, 'sprint'], [21, 2.4, 'jump']],
       },
       {
         map: [
@@ -83,7 +83,7 @@ const HAND_LEVELS = [
           '#............................/##########',
           '#..P.........................#/#########',
           '########################################',
-        ], text: [[8, 2.6, 'slide']],
+        ], text: [[8, 2.6, 'slide'], [27, 2.4, 'flip']],
       },
       {
         map: [
@@ -405,8 +405,12 @@ function genRoom(seed, d, opts = {}) {
   if (d > 0.25) pool.push('shotgun', 'grunt');
   if (d > 0.3) pool.push('knife');
   if (d > 0.4) pool.push('rifle');
+  if (d > 0.3) pool.push('shield');
+  if (d > 0.38) pool.push('grenadier');
+  if (d > 0.5) pool.push('brute');
   if (d > 0.65) pool.push('heavy');
-  const charOf = { grunt: 'e', smg: 'm', shotgun: 's', rifle: 'r', heavy: 'h', knife: 'k' };
+  const charOf = { grunt: 'e', smg: 'm', shotgun: 's', rifle: 'r', heavy: 'h', knife: 'k', shield: 'i', grenadier: 'n', brute: 'y' };
+  let brutes = 0;
   const spots = [];
   for (let i = 10; i < cols - 3; i++) if (flatAt(i) && free(i, f[i] - 1)) spots.push([i, f[i] - 1]);
   for (const L of ledges) for (let k = 0; k < L.len; k++) spots.push([L.x + k, L.r - 1]);
@@ -423,6 +427,7 @@ function genRoom(seed, d, opts = {}) {
     if (!free(p[0], p[1]) || !spaced(p[0], p[1])) continue;
     let type = pool[Math.floor(R() * pool.length)];
     if (type === 'rifle' && p[0] < cols * 0.5) type = 'grunt';
+    if (type === 'brute' && (brutes++ > 0 || p[1] !== f[p[0]] - 1)) type = 'grunt';     // one brute a room, on the floor
     const away = ch(0.18 - d * 0.1);
     const cch = charOf[type];
     mark(p[0], p[1], away ? cch.toUpperCase() : cch);
@@ -512,8 +517,10 @@ function genBigRoom(seed, d, opts = {}) {
   const pool = ['grunt', 'grunt', 'smg'];
   if (d > 0.25) pool.push('shotgun');
   if (d > 0.35) pool.push('knife');
+  if (d > 0.3) pool.push('shield');
+  if (d > 0.38) pool.push('grenadier');
   if (d > 0.6) pool.push('heavy');
-  const charOf = { grunt: 'e', smg: 'm', shotgun: 's', rifle: 'r', heavy: 'h', knife: 'k' };
+  const charOf = { grunt: 'e', smg: 'm', shotgun: 's', rifle: 'r', heavy: 'h', knife: 'k', shield: 'i', grenadier: 'n', brute: 'y' };
   const taken = [];
   const spaced = (x, y) => taken.every(([tx, ty]) => Math.abs(tx - x) >= (Math.abs(ty - y) < 2 ? 5 : 3));
   const put = (list, type) => {
@@ -530,6 +537,7 @@ function genBigRoom(seed, d, opts = {}) {
   for (let k = 0; k < 1 + Math.round(d); k++) put(under, pool[Math.floor(R() * pool.length)]);
   for (let k = 0; k < 2 + Math.round(d * 2); k++) put(far, pool[Math.floor(R() * pool.length)]);
   if (opts.boss) put(far, 'heavy');
+  if (d > 0.5) put(far, 'brute');
   // cover and dressing
   const furn = st.furn;
   for (let t = 0; t < 40; t++) {

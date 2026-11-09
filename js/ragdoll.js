@@ -11,11 +11,11 @@ const J = { HEAD: 0, NECK: 1, PELVIS: 2, FELB: 3, FHAND: 4, BELB: 5, BHAND: 6, F
 const LEN = { thigh: 22, shin: 22, upper: 16, fore: 16, torso: 34, neck: 13 };
 // sticks: [a, b, length, thickness, depth, role]
 const STICKS = [
-  [J.NECK, J.PELVIS, LEN.torso, 18, 0.062, 'torso'],
+  [J.NECK, J.PELVIS, LEN.torso, 20, 0.066, 'torso'],
   [J.NECK, J.HEAD, LEN.neck, 17, 0.06, 'head'],
   [J.NECK, J.BELB, LEN.upper, 8, 0.04, 'barm'], [J.BELB, J.BHAND, LEN.fore, 7, 0.04, 'barm'],
-  [J.PELVIS, J.BKNEE, LEN.thigh, 10, 0.045, 'bleg'], [J.BKNEE, J.BFOOT, LEN.shin, 9, 0.045, 'bleg'],
-  [J.PELVIS, J.FKNEE, LEN.thigh, 10, 0.045, 'fleg'], [J.FKNEE, J.FFOOT, LEN.shin, 9, 0.045, 'fleg'],
+  [J.PELVIS, J.BKNEE, LEN.thigh, 11, 0.047, 'bleg'], [J.BKNEE, J.BFOOT, LEN.shin, 10, 0.047, 'bleg'],
+  [J.PELVIS, J.FKNEE, LEN.thigh, 11, 0.047, 'fleg'], [J.FKNEE, J.FFOOT, LEN.shin, 10, 0.047, 'fleg'],
   [J.NECK, J.FELB, LEN.upper, 8, 0.04, 'farm'], [J.FELB, J.FHAND, LEN.fore, 7, 0.04, 'farm'],
 ];
 const DRAW_ORDER = [2, 3, 4, 5, 0, 1, 6, 7, 8, 9];
@@ -79,9 +79,12 @@ class Body {
       // low power slide: hips almost on the floor, chest reclined, lead leg straight out
       const wob = Math.sin(this.t * 30) * 0.6;
       pel = [-1, -9 + wob];
-      const rec = 0.55;                                          // recline angle above the floor (rad)
+      // recline angle above the floor; sits up taller when there's a wall close behind
+      const back = st.slideBack != null ? st.slideBack : 60;
+      const rec = Math.max(0.55, Math.acos(clamp((back - 8) / LEN.torso, 0.15, 1)));
       neck = [pel[0] - Math.cos(rec) * LEN.torso, pel[1] - Math.sin(rec) * LEN.torso];
-      fFoot = [38, -4]; bFoot = [12, -3];
+      const front = st.slideFront != null ? st.slideFront : 60;
+      fFoot = [clamp(front - 6, 14, 38), -4]; bFoot = [clamp(front - 26, 4, 12), -3];
     } else if (!st.grounded) {
       const fall = clamp((st.vy || 0) / 650, -1, 1);
       pel = [0, -47];
@@ -158,6 +161,11 @@ class Body {
       set(J.FELB, k[0], k[1]); set(J.FHAND, k[2], k[3]);
       k = ik(sh[0], sh[1], bh[0], bh[1], LEN.upper, LEN.fore, 1);
       set(J.BELB, k[0], k[1]); set(J.BHAND, k[2], k[3]);
+    }
+    // sliding down stairs: the whole body follows the slope
+    if (st.slide && st.slope) {
+      const c = Math.cos(st.slope), sn = Math.sin(st.slope);
+      for (const p of T) { const x = p.x, y = p.y; p.x = x * c - y * sn; p.y = x * sn + y * c; }
     }
     // flips rotate the whole figure around the waist
     if (st.flip) {
@@ -312,22 +320,11 @@ class Body {
       const col = back ? dark : base;
       if (st[5] === 'head') drawHead(ctx, a, b, st[3] * this.s, col, this, f);
       else limb(ctx, a.x, a.y, b.x, b.y, st[3] * this.s, st[4], col, st[5] === 'torso' ? 1.4 : 1);
-      if (si === 5 || si === 7) drawFoot(ctx, a, b, f, this.s, shade(col, -0.08), st[4]);
       // the gun sits in the hands, between the arms
       if (si === 4 && this.gunId && !this.dead && this.dual) drawGun(ctx, this.pts[J.BHAND], this.gunAng2 != null && this.dual ? this.gunAng2 : this.gunAng, this.gunId, this.dual);
       if (si === 9 && this.gunId && !this.dead) drawGun(ctx, this.pts[J.FHAND], this.gunAng, this.gunId, false);
     }
   }
-}
-
-// a small shoe block at the end of each shin: flat when planted, toe dips while the leg swings
-function drawFoot(ctx, knee, foot, f, s, col, dz) {
-  const sa = Math.atan2(foot.y - knee.y, foot.x - knee.x);
-  const tilt = clamp((sa - Math.PI / 2) * 0.75, -0.9, 0.9);
-  const c = Math.cos(tilt), sn = Math.sin(tilt);
-  const P = (u, v) => [foot.x + (c * u - sn * v) * s, foot.y + (sn * u + c * v) * s];
-  const h0 = -3, t0 = 10 * f;
-  prism(ctx, [P(-3 * f, h0), P(t0, h0), P(t0, 2), P(-3 * f, 2)].map(([x, y]) => [x, y]), ZP - dz, ZP + dz, col, shade(col, 0.16), shade(col, -0.14), shade(col, -0.24));
 }
 
 function hsl(h, s, l) {
@@ -365,7 +362,7 @@ function drawHead(ctx, neck, head, size, col, body, f) {
 
 function drawHat(ctx, hat, cx, cy, ux, uy, size, f) {
   // head-local frame: a = toward the face, b = up out of the head
-  const rx = uy, ry = -ux;
+  const rx = -uy, ry = ux;
   const P = (a, b) => [cx + rx * a * f + ux * b, cy + ry * a * f + uy * b];
   const h = size / 2, t = performance.now() / 1000;
   const poly = (pts, c, z = 0.075) => prism(ctx, pts.map(([a, b]) => P(a, b)), ZP - z, ZP + z, c, shade(c, 0.2), shade(c, -0.16), shade(c, -0.28));
@@ -397,10 +394,11 @@ function drawHat(ctx, hat, cx, cy, ux, uy, size, f) {
     }
     case 'party': {
       const c = '#ff5d9e';
-      poly([[-h * 0.85, h * 0.6], [h * 0.85, h * 0.6], [1, h + 21]], c, 0.06);
-      poly([[-h * 0.58, h + 4], [h * 0.62, h + 4], [h * 0.42, h + 9], [-h * 0.36, h + 9]], '#ffd34d', 0.061);
-      poly([[-h * 0.2, h + 13], [h * 0.3, h + 13], [h * 0.15, h + 16], [-h * 0.05, h + 16]], '#58e1ff', 0.061);
-      box(-2, h + 24, 4, h + 19, '#ffd34d', 0.03);
+      poly([[-h - 1.5, h * 0.25], [h + 1.5, h * 0.25], [0, h + 22]], c, 0.078);
+      poly([[-h * 0.82, h * 0.25 + 5], [h * 0.82, h * 0.25 + 5], [h * 0.6, h * 0.25 + 10], [-h * 0.6, h * 0.25 + 10]], '#ffd34d', 0.079);
+      poly([[-h * 0.42, h + 8], [h * 0.42, h + 8], [h * 0.24, h + 13], [-h * 0.24, h + 13]], '#58e1ff', 0.079);
+      box(-h - 1.5, h * 0.35, h + 1.5, h * 0.18, '#ff8ac0', 0.08);
+      box(-3, h + 26, 3, h + 20.5, '#ffd34d', 0.04);
       break;
     }
     case 'shades': {
@@ -461,6 +459,18 @@ function drawHat(ctx, hat, cx, cy, ux, uy, size, f) {
       box(-1.6, h + 3.5, 1.6, h + 0.5, '#e2434b', 0.082);
       box(h - 3.5, h + 3.5, h - 0.8, h + 1, '#4da3ff', 0.082);
       box(-h + 0.8, h + 3.5, -h + 3.5, h + 1, '#45e08a', 0.082);
+      break;
+    }
+    case 'riot': {
+      const c = '#2b2f3b';
+      poly([[-h - 1.5, h * 0.1], [h + 1.5, h * 0.1], [h + 1, h + 3], [h * 0.4, h + 6], [-h * 0.6, h + 6], [-h - 1.5, h + 3]], c, 0.08);
+      poly([[0, h * 0.75], [h + 2.5, h * 0.75], [h + 2.5, -h * 0.4], [2, -h * 0.4]], 'rgba(140,170,200,0.55)', 0.082);
+      break;
+    }
+    case 'olive': {
+      const c = '#5d6b4a';
+      poly([[-h - 1, h * 0.35], [h + 1, h * 0.35], [h + 0.5, h + 3], [-h * 0.5, h + 5], [-h - 1, h + 3]], c, 0.079);
+      poly([[h - 1, h * 0.55], [h + 7, h * 0.4], [h + 7, h * 0.3], [h - 1, h * 0.35]], shade(c, -0.2), 0.07);
       break;
     }
     case 'halo': {

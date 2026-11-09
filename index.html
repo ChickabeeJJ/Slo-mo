@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0c0e15">
   <meta name="description" content="Slo-Mo - a slow-motion ragdoll shootout. Sprint, slide and flip through 30 levels of white rooms, bend time and send red gunmen tumbling into pieces.">
   <title>Slo-Mo</title>
-  <link rel="stylesheet" href="css/style.css?v=4">
+  <link rel="stylesheet" href="css/style.css?v=5">
   <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
 </head>
 <body>
@@ -14,6 +14,7 @@
 
   <!-- =============================== HUD =============================== -->
   <div id="hud" class="hidden">
+    <div class="tapfire" id="tapfire" aria-hidden="true"></div>
     <div class="stage-chip" id="stageChip">
       <span class="chip-num" id="chipNum">1</span>
       <div class="chip-body">
@@ -44,13 +45,13 @@
 
     <div class="death hidden" id="death">
       <b id="deathTitle">YOU DIED</b>
+      <div class="lives hidden" id="deathLives"></div>
       <span id="deathSub">CLICK OR PRESS R TO RETRY</span>
       <div class="death-btns hidden" id="deathBtns"></div>
     </div>
 
     <!-- touch -->
     <div class="joy" id="joy"><div class="joy-base"></div><div class="joy-knob" id="joyKnob"></div></div>
-    <div class="aimpad" id="aimpad"><div class="aim-base"><span>AIM + FIRE</span></div><div class="aim-knob" id="aimKnob"></div></div>
     <div class="tbtns" id="tbtns">
       <button class="tb tb-slow" data-act="slow"><span class="ic" data-icon="clock"></span><small>SLOW</small></button>
       <button class="tb tb-jump" data-act="jump"><span class="ic" data-icon="up"></span><small>JUMP</small></button>
@@ -122,19 +123,19 @@
   <div id="toasts"></div>
   <div id="rotate" class="hidden"><div><span class="ic" data-icon="rotate"></span><p>TURN YOUR DEVICE SIDEWAYS</p><button class="btn primary" id="btnRotateOk"><b>PLAY ANYWAY</b></button></div></div>
 
-  <script src="js/util.js?v=4"></script>
-  <script src="js/platform.js?v=4"></script>
-  <script src="js/audio.js?v=4"></script>
-  <script src="js/data.js?v=4"></script>
-  <script src="js/levels.js?v=4"></script>
-  <script src="js/progress.js?v=4"></script>
-  <script src="js/physics.js?v=4"></script>
-  <script src="js/world.js?v=4"></script>
-  <script src="js/ragdoll.js?v=4"></script>
-  <script src="js/fx.js?v=4"></script>
-  <script src="js/game.js?v=4"></script>
-  <script src="js/icons.js?v=4"></script>
-  <script src="js/ui.js?v=4"></script>
-  <script src="js/main.js?v=4"></script>
+  <script src="js/util.js?v=5"></script>
+  <script src="js/platform.js?v=5"></script>
+  <script src="js/audio.js?v=5"></script>
+  <script src="js/data.js?v=5"></script>
+  <script src="js/levels.js?v=5"></script>
+  <script src="js/progress.js?v=5"></script>
+  <script src="js/physics.js?v=5"></script>
+  <script src="js/world.js?v=5"></script>
+  <script src="js/ragdoll.js?v=5"></script>
+  <script src="js/fx.js?v=5"></script>
+  <script src="js/game.js?v=5"></script>
+  <script src="js/icons.js?v=5"></script>
+  <script src="js/ui.js?v=5"></script>
+  <script src="js/main.js?v=5"></script>
 </body>
 </html>

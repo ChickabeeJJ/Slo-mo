@@ -36,7 +36,7 @@ const UI = (() => {
 
     Game.on('complete', onComplete);
     Game.on('death', onDeath);
-    Game.on('respawn', () => $('death').classList.add('hidden'));
+    Game.on('respawn', () => { $('death').classList.add('hidden'); updateChip(); });
     Game.on('room', () => { updateChip(); });
     Game.on('start', () => { updateChip(); $('death').classList.add('hidden'); });
     Game.on('mission', m => toast('Mission complete: ' + m.text, 'scroll'));
@@ -186,10 +186,11 @@ const UI = (() => {
     const b = o.body || new Body({ x: 0, y: 0, color: skin.body, dark: skin.dark, shine: skin.shine, rainbow: skin.rainbow, hat: o.hat });
     b.color = skin.body; b.dark = skin.dark; b.shine = skin.shine; b.rainbow = skin.rainbow; b.hat = o.hat;
     b.gunId = o.weapon; b.dual = !!(WEAPON[o.weapon] || {}).dual;
-    b.pose({ x: 0, y: 0, facing: 1, aim: o.aim != null ? o.aim : -0.05 + Math.sin(t * 1.3) * 0.06, vx: 0, vy: 0, grounded: true, gun: !!o.weapon, twoHand: TWO_HAND.has(o.weapon), dual: b.dual }, 1 / 60);
+    b.pose({ x: 0, y: 0, facing: 1, aim: o.aim != null ? o.aim : -0.05 + Math.sin(t * 1.3) * 0.06, vx: 0, vy: 0, grounded: true, gun: !!o.weapon, twoHand: TWO_HAND.has(o.weapon), dual: b.dual, kick: o.kick || 0, kick2: o.kick2 || 0 }, 1 / 60);
     ctx.fillStyle = 'rgba(40,40,60,0.12)';
     ctx.beginPath(); ctx.ellipse(0, 0, 26, 5, 0, 0, TAU); ctx.fill();
     b.draw(ctx);
+    if (o.after) o.after(ctx, b);
     ctx.restore();
     View.V.x = savedV.x; View.V.y = savedV.y;
     return b;
@@ -210,6 +211,20 @@ const UI = (() => {
       drawFigure(ctx, cv.width / 2 - 2, 76 + 91 * 3.2, 3.2, { skin: S().skin, hat: id, weapon: null, aim: 0 });
     }
   }
+  // The armory preview test-fires the selected gun on a loop, gimmick and all.
+  const prev = { shots: [], fx: [], cycle: 0, fireT: 0, burst: 0, burstT: 0, charge: 0, kick: 0, kick2: 0, alt: 0, wid: null };
+  function previewFire(w, body) {
+    const second = w.dual && (prev.alt ^= 1) === 1;
+    const m = body.muzzle(w.len, second), a = second ? body.gunAng2 : body.gunAng;
+    const n = w.pellets || 1, sp = 520 * (w.speedK || 1);
+    for (let i = 0; i < n; i++) {
+      const aa = a + (n > 1 ? (i / (n - 1) - 0.5) * w.spread * 2 : rand(-1, 1) * w.spread);
+      prev.shots.push({ x: m.x, y: m.y, ox: m.x, oy: m.y, vx: Math.cos(aa) * sp, vy: Math.sin(aa) * sp, t: 0, life: w.pellets ? 0.35 : 1.6, w });
+    }
+    prev.fx.push({ x: m.x, y: m.y, a, t: 0, big: w.big ? 1.4 : 1 });
+    if (second) prev.kick2 = w.kick || 1; else prev.kick = w.kick || 1;
+    if (w.id === 'railgun') prev.fx.push({ ring: true, x: m.x, y: m.y, t: 0 });
+  }
   function renderPreview(t) {
     if (screen !== 'armory') return;
     const cv = $('previewCanvas'), ctx = cv.getContext('2d');
@@ -217,8 +232,52 @@ const UI = (() => {
     const sel = armorySel || equipped(armoryTab);
     const o = { skin: S().skin, hat: S().hat, weapon: S().weapon };
     if (armoryTab === 'weapon') o.weapon = sel; else if (armoryTab === 'skin') o.skin = sel; else o.hat = sel;
-    previewBody = drawFigure(ctx, cv.width / 2 - 10, cv.height - 70, 2.1, Object.assign(o, { body: previewBody }), t);
+    const w = WEAPON[o.weapon] || WEAPONS[0];
+    if (prev.wid !== w.id) { prev.wid = w.id; prev.shots = []; prev.fx = []; prev.cycle = 0.35; prev.burst = 0; prev.charge = 0; }
+    const dt = 1 / 60, scale = 2.1, cx = cv.width / 2 - 70, cy = cv.height - 70;
+    const halfW = cv.width / scale;
+    // firing schedule: one volley (or a short hold for automatics) every 1.5 s
+    prev.cycle -= dt;
+    prev.kick = Math.max(0, prev.kick - dt * 8); prev.kick2 = Math.max(0, prev.kick2 - dt * 8);
+    o.aim = -0.04; o.kick = prev.kick; o.kick2 = prev.kick2;
+    o.after = (c, body) => {
+      if (prev.cycle <= 0) {
+        if (w.charge) { prev.charge += dt; if (prev.charge >= w.charge) { previewFire(w, body); prev.charge = 0; prev.cycle = 1.5; } }
+        else if (w.auto) { prev.holdT = (prev.holdT || 0) + dt; prev.fireT -= dt; if (prev.fireT <= 0 && (!w.spinup || prev.holdT > w.spinup * 0.6)) { previewFire(w, body); prev.fireT = w.rate; } if (prev.holdT > 0.9) { prev.holdT = 0; prev.cycle = 1.2; } }
+        else { previewFire(w, body); if (w.burst) { prev.burst = w.burst - 1; prev.burstT = w.burstGap; } else if (w.dual) { prev.burst = 1; prev.burstT = w.rate; } prev.cycle = 1.5; }
+      }
+      if (prev.burst > 0) { prev.burstT -= dt; if (prev.burstT <= 0) { previewFire(w, body); prev.burst--; prev.burstT = w.burstGap || w.rate; } }
+      if (w.charge && prev.charge > 0) { const m = body.muzzle(w.len); Glow.draw(c, '#58e1ff', m.x, m.y, 4 + prev.charge * 26, 0.8); }
+      // rounds
+      for (const b of prev.shots) {
+        b.t += dt;
+        if (b.w.gravity) b.vy += b.w.gravity * 0.5 * dt;
+        if (b.w.homing) { const a = Math.atan2(b.vy, b.vx), na = turnTo(a, Math.atan2(-50 - b.y, 130 - b.x), b.w.homing * dt), sp = Math.hypot(b.vx, b.vy); b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp; }
+        if (b.w.split && !b.split && b.t > 0.12) { b.split = true; const a = Math.atan2(b.vy, b.vx), sp = Math.hypot(b.vx, b.vy); for (const k of [-1, 1]) prev.shots.push(Object.assign({}, b, { vx: Math.cos(a + k * 0.22) * sp, vy: Math.sin(a + k * 0.22) * sp, ox: b.x, oy: b.y, t: b.t })); }
+        b.x += b.vx * dt; b.y += b.vy * dt;
+        if (b.w.bounce && (b.bn || 0) < 3 && (b.x > halfW * 0.8 || b.y < -140 || b.y > -2)) { b.bn = (b.bn || 0) + 1; if (b.x > halfW * 0.8) b.vx = -Math.abs(b.vx); else b.vy = -b.vy; b.ox = b.x; b.oy = b.y; }
+        if (b.w.blast && (b.y > -2 || b.x > halfW * 0.85)) { b.dead = true; prev.fx.push({ boom: true, x: b.x, y: Math.min(b.y, -4), t: 0 }); }
+        if (b.x > halfW || b.t > b.life) b.dead = true;
+        const tl = Math.min(Math.hypot(b.x - b.ox, b.y - b.oy), b.w.id === 'railgun' ? 140 : 40);
+        const ux = b.vx / Math.hypot(b.vx, b.vy), uy = b.vy / Math.hypot(b.vx, b.vy);
+        if (b.w.blast) { c.fillStyle = '#3f4a32'; c.beginPath(); c.arc(b.x, b.y, 3.5, 0, TAU); c.fill(); continue; }
+        c.strokeStyle = b.w.id === 'railgun' ? 'rgba(160,235,255,0.95)' : 'rgba(255,200,90,0.95)'; c.lineWidth = b.w.id === 'railgun' ? 4 : 1.8; c.lineCap = 'round';
+        c.beginPath(); c.moveTo(b.x - ux * tl, b.y - uy * tl); c.lineTo(b.x, b.y); c.stroke();
+      }
+      prev.shots = prev.shots.filter(b => !b.dead);
+      // flashes and booms
+      for (const f of prev.fx) {
+        f.t += dt;
+        if (f.boom) { const k = f.t / 0.4; Glow.draw(c, '#ffb347', f.x, f.y, 10 + 30 * k, 1 - k); continue; }
+        if (f.ring) { const k = f.t / 0.3; c.strokeStyle = `rgba(143,208,255,${1 - k})`; c.lineWidth = 2; c.beginPath(); c.arc(f.x, f.y, 4 + 20 * k, 0, TAU); c.stroke(); continue; }
+        const k = 1 - f.t / 0.07;
+        if (k > 0) { Glow.draw(c, '#ffe9a8', f.x, f.y, 12 * f.big * k + 3, 0.9 * k); c.save(); c.translate(f.x, f.y); c.rotate(f.a); c.fillStyle = `rgba(255,246,216,${k})`; c.beginPath(); c.moveTo(0, -2.5 * f.big); c.lineTo(11 * f.big, 0); c.lineTo(0, 2.5 * f.big); c.fill(); c.restore(); }
+      }
+      prev.fx = prev.fx.filter(f => f.t < (f.boom ? 0.4 : f.ring ? 0.3 : 0.07));
+    };
+    previewBody = drawFigure(ctx, cx, cy, scale, Object.assign(o, { body: previewBody }), t);
   }
+
 
   /* ------------------------------------------------------------- play */
   function play(i) {
@@ -246,7 +305,7 @@ const UI = (() => {
       $('chipNum').innerHTML = '<span class="ic" data-icon="infinity"></span>';
       Icons.hydrate($('chipNum'));
       $('chipTitle').textContent = 'ENDLESS';
-      $('chipSub').textContent = 'ROOM ' + (cur + 1);
+      $('chipSub').innerHTML = 'ROOM ' + (cur + 1) + ' <span class="hearts">' + [0, 1, 2].map(i => `<i class="${i < Game.lives ? 'on' : ''}"></i>`).join('') + '</span>';
       $('roomDots').innerHTML = '';
     } else {
       $('chipNum').textContent = Game.levelIdx + 1;
@@ -302,6 +361,8 @@ const UI = (() => {
     box.classList.remove('hidden');
     const btns = $('deathBtns');
     const touch = document.body.classList.contains('touch');
+    $('deathLives').classList.add('hidden');
+    $('deathSub').classList.toggle('stats', false);
     if (d.mode === 'campaign') {
       $('deathTitle').textContent = pick(['DOWN', 'YOU DIED', 'WASTED TIME', 'FLATLINED', 'TOO SLOW']);
       $('deathSub').textContent = touch ? 'TAP TO RETRY' : 'CLICK OR PRESS R TO RETRY';
@@ -309,12 +370,24 @@ const UI = (() => {
       box.onclick = () => Game.restartRoom();
       return;
     }
-    // endless: revive once with an ad, or end the run
+    // endless: three lives. A lost life retries the same room; with none left, revive (ad) or finish.
+    const lives = d.lives || 0;
+    $('deathLives').innerHTML = [0, 1, 2].map(i => `<span class="ic ${i < lives ? 'on' : ''}" data-icon="heart"></span>`).join('');
+    Icons.hydrate($('deathLives'));
+    $('deathLives').classList.remove('hidden');
+    if (lives > 0) {
+      $('deathTitle').textContent = 'DOWN';
+      $('deathSub').textContent = (lives === 1 ? 'LAST LIFE · ' : lives + ' LIVES LEFT · ') + (touch ? 'TAP TO RETRY THE ROOM' : 'CLICK OR PRESS R TO RETRY THE ROOM');
+      btns.classList.add('hidden');
+      box.onclick = () => Game.restartRoom();
+      return;
+    }
     box.onclick = null;
     $('deathTitle').textContent = 'RUN OVER';
-    $('deathSub').textContent = 'ROOM ' + (Game.endless.n + 1) + ' · ' + fmt(Game.run.score) + ' PTS';
+    $('deathSub').innerHTML = `<i class="stat"><b>${Game.endless.n + 1}</b>ROOM</i><i class="stat"><b>${fmt(Game.run.score)}</b>SCORE</i><i class="stat"><b>${Game.run.kills}</b>KILLS</i>`;
     const canAd = d.canRevive && Platform.rewardedAvailable && Date.now() - lastAdRevive > 60000;
-    btns.innerHTML = (canAd ? '<button class="btn offer small" id="dRevive"><span class="ic" data-icon="adv"></span><b>REVIVE</b></button>' : '') + '<button class="btn primary small" id="dEnd"><b>SEE RESULTS</b></button>';
+    btns.innerHTML = (canAd ? '<button class="btn offer" id="dRevive"><span class="ic" data-icon="adv"></span><span class="bt"><b>REVIVE</b><small>+1 LIFE</small></span></button>' : '')
+      + `<button class="btn primary ${canAd ? '' : 'wide'}" id="dEnd"><span class="bt"><b>RESULTS</b><small>${fmt(Game.run.score)} PTS</small></span></button>`;
     Icons.hydrate(btns);
     btns.classList.remove('hidden');
     if ($('dRevive')) $('dRevive').onclick = () => {
@@ -554,44 +627,42 @@ const UI = (() => {
     };
     joy.addEventListener('pointerup', jend); joy.addEventListener('pointercancel', jend);
 
-    const pad = $('aimpad'), ak = $('aimKnob'), ab = pad.querySelector('.aim-base');
-    let aid = null, ax0 = 0, ay0 = 0;
-    pad.addEventListener('pointerdown', e => {
+    // tap / hold anywhere outside the stick and buttons to fire toward that spot.
+    // Each finger is tracked by its own pointer id, so moving and shooting never interfere.
+    const tf = $('tapfire');
+    let fid = null;
+    const canRetry = () => Game.state === 'dead' && (Game.mode === 'campaign' || Game.lives > 0);
+    tf.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse') return;
       document.body.classList.add('touch'); Sfx.ensure();
-      aid = e.pointerId; ax0 = e.clientX; ay0 = e.clientY;
-      pad.classList.add('on');
-      for (const el of [ab, ak]) { el.style.left = ax0 + 'px'; el.style.top = ay0 + 'px'; }
-      pad.setPointerCapture(e.pointerId);
-      Game.setAimStick('auto');
-      if (Game.state === 'dead' && Game.mode === 'campaign') Game.restartRoom();
+      if (canRetry()) { Game.restartRoom(); return; }
+      if (fid !== null) return;
+      fid = e.pointerId;
+      tf.setPointerCapture(e.pointerId);
+      Game.setTouchTarget(e.clientX, e.clientY);
+      showTapMark(e.clientX, e.clientY);
     });
-    pad.addEventListener('pointermove', e => {
-      if (e.pointerId !== aid) return;
-      const r = R();
-      let dx = e.clientX - ax0, dy = e.clientY - ay0;
-      const d = Math.hypot(dx, dy);
-      if (d > r) { dx = dx / d * r; dy = dy / d * r; }
-      ak.style.left = ax0 + dx + 'px'; ak.style.top = ay0 + dy + 'px';
-      Game.setAimStick(d > 14 ? Math.atan2(dy, dx) : 'auto');
-    });
-    const aend = e => {
-      if (e.pointerId !== aid) return;
-      aid = null; pad.classList.remove('on');
-      for (const el of [ab, ak]) { el.style.left = ''; el.style.top = ''; }
-      Game.setAimStick(null);
-    };
-    pad.addEventListener('pointerup', aend); pad.addEventListener('pointercancel', aend);
+    tf.addEventListener('pointermove', e => { if (e.pointerId === fid) Game.setTouchTarget(e.clientX, e.clientY); });
+    const fend = e => { if (e.pointerId !== fid) return; fid = null; Game.setTouchTarget(null); };
+    tf.addEventListener('pointerup', fend); tf.addEventListener('pointercancel', fend); tf.addEventListener('lostpointercapture', fend);
 
     $('tbtns').querySelectorAll('.tb').forEach(b => {
       b.addEventListener('pointerdown', e => {
         e.preventDefault(); e.stopPropagation();
         document.body.classList.add('touch'); Sfx.ensure();
-        if (Game.state === 'dead' && Game.mode === 'campaign') { Game.restartRoom(); return; }
+        if (Game.state === 'dead' && (Game.mode === 'campaign' || Game.lives > 0)) { Game.restartRoom(); return; }
         Game.press(b.dataset.act);
       });
     });
   }
   function applyTouchVisibility() { /* touch class is set on first touch */ }
+  // a small ring where the finger landed, so a tap reads as a shot
+  function showTapMark(x, y) {
+    const m = document.createElement('i');
+    m.className = 'tapmark'; m.style.left = x + 'px'; m.style.top = y + 'px';
+    $('hud').appendChild(m);
+    setTimeout(() => m.remove(), 380);
+  }
 
   let rotateDismissed = false;
   function checkRotate() {

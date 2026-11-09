@@ -16,7 +16,7 @@ const Game = (() => {
   let mode = 'menu';            // menu | campaign | endless
   let paused = false;
   let level = null, levelIdx = 0, roomIdx = 0, room = null;
-  let ambushes = [];
+  let ambushes = [], grenades = [];
   let player = null, enemies = [], bullets = [], pieces = [], corpses = [], pickups = [], crates = [], barrels = [], panes = [], ghosts = [], pendingBooms = [];
   let ts = 1, slowOn = false, focus = 1, forcedT = 0, forcedScale = 1, hitstop = 0, closeCd = 0, heartT = 0, ghostT = 0;
   let clock = 0, roomT = 0, runTime = 0, deathT = 0, fade = null, doorOpen = false, clearT = -1, flash = 0, flashCol = '#ffffff';
@@ -48,7 +48,7 @@ const Game = (() => {
   const diff = () => (mode === 'endless' ? clamp(0.25 + endless.n * 0.06, 0, 1) : mode === 'campaign' ? levelDiff(levelIdx) : 0.3);
 
   function newRun() {
-    return { score: 0, kills: 0, headshots: 0, deaths: 0, combo: 0, comboT: 0, bestCombo: 0, deflects: 0, time: 0, rooms: 0 };
+    return { score: 0, kills: 0, headshots: 0, deaths: 0, combo: 0, comboT: 0, bestCombo: 0, deflects: 0, time: 0, rooms: 0, lives: 3 };
   }
 
   // the home screen plays a looping slow-motion shootout behind the menu
@@ -110,8 +110,10 @@ const Game = (() => {
 
   function roomDef(i) { return mode === 'endless' ? endlessRoom(endless.seed, i) : level.rooms[i]; }
 
+  let roomFocus = 1;
   function loadRoom(i) {
     roomIdx = i;
+    roomFocus = i === 0 && mode === 'campaign' ? 1 : focus;    // a retry starts with what you walked in with
     const def = roomDef(i);
     room = new Room(def, mode === 'endless' ? def.theme : level.theme);
     resetRoomEntities();
@@ -119,7 +121,7 @@ const Game = (() => {
   }
 
   function resetRoomEntities() {
-    enemies = []; bullets = []; pieces = []; corpses = []; pickups = []; ghosts = []; pendingBooms = [];
+    enemies = []; bullets = []; grenades = []; pieces = []; corpses = []; pickups = []; ghosts = []; pendingBooms = [];
     room.decals = [];
     doorAnim = 0;
     Fx.clear();
@@ -145,7 +147,7 @@ const Game = (() => {
   }
   function makeEnemy(type, x, y, away) {
     const def = ENEMIES[type];
-    const e = makeChar(x, y, { color: '#e2434b', dark: '#b02a33', deadColor: deadCol(), scale: def.scale });
+    const e = makeChar(x, y, { color: def.color || '#e2434b', dark: def.dark || '#b02a33', deadColor: deadCol(), scale: def.scale, hat: def.hat });
     e.type = type; e.def = def; e.hp = def.hp; e.gun = def.gun;
     const towardSpawn = room.spawn.x < x ? -1 : 1;
     e.facing = away ? -towardSpawn : towardSpawn;
@@ -156,33 +158,19 @@ const Game = (() => {
     return e;
   }
 
-  // Ambushes: an enemy bursts out of a side door (or drops from a ceiling hatch) once you pass a
-  // trigger line. Fair by design: there's an alarm and a flashing door first, they appear well ahead
-  // of you (never behind or on top of you), and they take extra time before their first shot.
-  function updateAmbushes(dt) {
+  // Surprise enemies: once you pass a trigger line they simply appear, as in the original.
+  // Kept fair: they only ever appear ahead of you and a good distance away (never behind you
+  // or on top of you), they show their sight line as usual, and they wait a beat before firing.
+  function updateAmbushes() {
     for (const a of ambushes) {
-      if (a.state === 'wait') {
-        if (player.alive && player.x >= a.trigger) {
-          if (Math.abs(player.x - a.x) < 200 || player.x > a.x) { a.state = 'skip'; continue; }
-          a.state = 'warn'; a.t = 0.75;
-          Sfx.alarm();
-          Fx.text(a.x, a.y - 130, '!', '#e2434b', 34);
-        }
-      } else if (a.state === 'warn') {
-        a.t -= dt; a.anim = Math.min(1, a.anim + dt / 0.6);
-        if (a.t <= 0) {
-          const y = a.kind === 'drop' ? a.dropY : a.y;
-          const e = makeEnemy(a.type, a.x, y, false);
-          e.facing = player.x < a.x ? -1 : 1; e.aim = e.facing > 0 ? 0 : Math.PI;
-          e.alert = true; e.reactT = e.def.react * reactMul() + 0.45; e.lastX = player.x; e.lastY = player.y - 58;
-          e.body.alpha = a.kind === 'door' ? 0 : null;
-          if (a.kind === 'drop') { e.grounded = false; e.vy = 200; Fx.dust(a.x, a.dropY - 92, 10, room.theme.side, 0.8); Sfx.crate(); }
-          else { Fx.smoke(a.x, a.y - 50, 6, '#c9c9cf', 0.6); }
-          enemies.push(e);
-          a.state = 'done';
-          emit('ambush');
-        }
-      } else if (a.state === 'done') a.anim = Math.max(0, a.anim - dt / 2.5);
+      if (a.state !== 'wait' || !player.alive || player.x < a.trigger) continue;
+      if (Math.abs(player.x - a.x) < 220 || player.x > a.x) { a.state = 'skip'; continue; }
+      const e = makeEnemy(a.type, a.x, a.y, false);
+      e.facing = player.x < a.x ? -1 : 1; e.aim = e.facing > 0 ? 0 : Math.PI;
+      e.alert = true; e.reactT = e.def.react * reactMul() + 0.35; e.lastX = player.x; e.lastY = player.y - 58;
+      enemies.push(e);
+      a.state = 'done';
+      emit('ambush');
     }
   }
 
@@ -205,6 +193,13 @@ const Game = (() => {
   function setMouse(x, y) { input.mouse.x = x; input.mouse.y = y; input.mouse.on = true; input.touch = false; }
   function setAxis(x, y) { input.axis = x; input.axisY = y; input.touch = true; }
   function setAimStick(a) { input.aimStick = a; input.touch = true; }   // null or angle
+  // touch: the finger on the right side of the screen; null when lifted
+  function setTouchTarget(x, y) {
+    input.touch = true;
+    if (x == null) { input.touchTarget = null; return; }
+    if (!input.touchTarget) input.shootBuf = 0.2;          // a quick tap still fires once
+    input.touchTarget = { x, y }; input.lastTouch = { x, y };
+  }
 
   /* --------------------------------------------------------- camera */
   function viewH() { return clamp(room.h + 360, 640, 900); }
@@ -299,8 +294,9 @@ const Game = (() => {
       else { player.body.simulate(wdt, room, panes); deathT += dtReal; }
       for (const e of enemies) updateEnemy(e, wdt);
       updateBullets(wdt);
+      updateGrenades(wdt);
       updateWorldBits(wdt);
-      if (state === 'play') updateAmbushes(wdt);
+      if (state === 'play') updateAmbushes();
       updateDoor(dtReal);
       checkRoomFlow(dtReal);
     }
@@ -356,7 +352,22 @@ const Game = (() => {
     const p = player;
     const w = curWeapon();
     // ---- aim
-    if (input.touch) {
+    const tapAim = input.touchTarget || ((input.shootBuf || 0) > 0 ? input.lastTouch : null);
+    if (input.touch && tapAim) {
+      // aim at the tapped point; snap onto an enemy right next to it
+      const m = screenToWorld(tapAim.x, tapAim.y);
+      const sy = p.slideT > 0 || p.crawl ? p.y - 24 : p.y - 74;
+      let tx = m.x, ty = m.y;
+      if (Save.data.settings.aimAssist) {
+        let bd = 90;
+        for (const e of enemies) {
+          if (!e.alive) continue;
+          const c = e.body.center(), d = dist(c.x, c.y, m.x, m.y);
+          if (d < bd) { bd = d; tx = c.x; ty = c.y - 6; }
+        }
+      }
+      p.aim = Math.atan2(ty - sy, tx - p.x);
+    } else if (input.touch) {
       if (typeof input.aimStick === 'number') {
         p.aim = input.aimStick;
         // soft snap to the nearest enemy near the stick direction
@@ -416,19 +427,26 @@ const Game = (() => {
         Sfx.slide();
       } else if (p.grounded && p.slideT <= 0 && !p.crawl) startSlide(p, mx);
     }
+    // a slide carries its speed and bleeds it off with floor friction, then you stand back up.
+    // Under a low ceiling you keep shuffling forward until there's room to stand.
     if (p.slideT > 0) {
       p.slideT -= dt;
-      p.vx = approach(p.vx, 0, 620 * dt);
+      p.vx = approach(p.vx, 0, (p.grounded ? 330 : 60) * dt);
       if (p.grounded && Math.random() < 0.5) Fx.dust(p.x - p.slideDir * 10, p.y, 1, room.theme.side, 0.4);
       if (p.slideT <= 0 || Math.abs(p.vx) < 120) {
         p.slideT = 0;
-        if (room.canStand(p, STAND_H, panes)) { p.h = STAND_H; p.crawl = false; }
-        else p.crawl = true;
+        if (!tryStand(p)) { p.crawl = true; p.vx = p.slideDir * Math.max(170, Math.abs(p.vx)); }
       }
     }
     if (p.crawl) {
-      p.vx = p.slideDir * 230;
-      if (room.canStand(p, STAND_H, panes)) { p.crawl = false; p.h = STAND_H; }
+      p.vx = p.slideDir * 170;
+      if (tryStand(p, true)) p.crawl = false;
+      else {
+        // never stay wedged: if the crawl isn't getting anywhere, turn around
+        p.crawlStuck = Math.abs(p.x - (p.crawlX || 0)) < 0.5 ? (p.crawlStuck || 0) + dt : 0;
+        p.crawlX = p.x;
+        if (p.crawlStuck > 0.25) { p.slideDir = -p.slideDir; p.crawlStuck = 0; }
+      }
     }
     // safety net: if we're ever standing inside a low ceiling, drop back into a crawl
     if (p.h === STAND_H && p.grounded && !room.canStand(p, STAND_H, panes)) { p.h = SLIDE_H; p.crawl = true; p.flipping = false; if (!p.slideDir) p.slideDir = p.facing; }
@@ -469,7 +487,9 @@ const Game = (() => {
     p.vy = Math.min(p.vy + G * dt, 1500);
     const wasAir = !p.grounded;
     const fallV = p.vy, fallVx = p.vx;
+    p.noStep = sliding;                         // a slide never climbs a step: it stops against it
     const out = room.moveBody(p, dt, panes);
+    if (out.wall && p.slideT > 0) { p.slideT = 0; p.vx = 0; if (!tryStand(p)) p.crawl = true; }
     if (out.landed && wasAir && p.airSlide) {
       p.airSlide = false;
       startSlide(p, p.slideDir);
@@ -501,7 +521,7 @@ const Game = (() => {
     }
     if (pressed.has('reload') && !p.pickup && p.weapon.reloadT <= 0 && p.weapon.ammo < WEAPON[p.weapon.id].mag) startReload();
     input.shootBuf = (input.shootBuf || 0) - dt;
-    const holding = input.touch ? input.aimStick != null : input.shoot;
+    const holding = input.touch ? (input.touchTarget != null || input.aimStick != null) : input.shoot;
     const ready = pw.ammo > 0 && (p.pickup || p.weapon.reloadT <= 0);
     // minigun: spin up before it fires
     if (w.spinup) {
@@ -521,7 +541,7 @@ const Game = (() => {
       wantShoot = !holding && (pw.chargeT || 0) >= w.charge;
       if (!holding && (pw.chargeT || 0) < w.charge) pw.chargeT = 0;
     } else if (w.spinup) wantShoot = holding && pw.spin >= 1;
-    else wantShoot = input.touch ? holding : (w.auto ? input.shoot : input.shootBuf > 0);
+    else wantShoot = input.touch ? holding || input.shootBuf > 0 : (w.auto ? input.shoot : input.shootBuf > 0);
     // burst follow-up rounds
     if (pw.burstLeft > 0) {
       pw.burstT -= dt;
@@ -554,22 +574,43 @@ const Game = (() => {
     if (pressed.has('slow')) toggleSlow();
 
     // ---- pose
+    let slideFront = null, slideBack = null, slope = 0;
+    if (sliding && p.grounded) {
+      const free = dir => { for (let k = 6; k <= 60; k += 3) if (room.solidAt(p.x + dir * k, p.y - 8, panes) || room.solidAt(p.x + dir * k, p.y - 26, panes)) return k; return 60; };
+      slideFront = free(p.facing); slideBack = free(-p.facing);
+      const gF = groundBelow(p.x + p.facing * 22, p.y - 24), gB = groundBelow(p.x - p.facing * 22, p.y - 24);
+      if (gF != null && gB != null) slope = clamp(Math.atan2(gF - gB, 44), -0.45, 0.45);
+    }
+    p.slopeS = lerp(p.slopeS || 0, slope, 1 - Math.exp(-14 * dt));
     const ww = curWeapon();
     p.body.gunId = ww.id;
     p.body.dual = !!ww.dual;
     p.body.pose({
       x: p.x, y: p.y, facing: p.facing, aim: p.aim, vx: p.vx, vy: p.vy, grounded: p.grounded || p.airSlide, slide: sliding, flip: p.flipping ? p.flip * p.flipDir : 0,
       sprint: p.sprinting, gun: true, twoHand: TWO_HAND.has(ww.id), dual: ww.dual, kick: p.weapon.kick, kick2: p.weapon.kick2,
+      slideFront, slideBack, slope: p.slopeS,
       reload: !p.pickup && p.weapon.reloadT > 0 ? 1 - p.weapon.reloadT / WEAPON[p.weapon.id].reload : 0,
     }, dt);
     if (p.body.flash > 0) p.body.flash -= dt * 4;
     if (p.invuln > 0) p.invuln -= dt;
   }
 
+  // stand up if there's headroom here, or a few pixels to either side (so you can't get wedged)
+  function tryStand(p, here) {
+    for (const dx of here ? [0] : [0, -4, 4, -8, 8, -12, 12, -16, 16]) {
+      const t = { x: p.x + dx, y: p.y, w: p.w };
+      if (room.canStand(t, STAND_H, panes) && !room.boxHit(t.x - p.w / 2, p.y - SLIDE_H, t.x + p.w / 2, p.y - 1, panes)) {
+        p.x = t.x; p.h = STAND_H; p.crawl = false; p.slideT = 0;
+        return true;
+      }
+    }
+    return false;
+  }
+
   function startSlide(p, mx = 0) {
     p.slideDir = Math.abs(mx) > 0.1 ? Math.sign(mx) : Math.abs(p.vx) > 40 ? Math.sign(p.vx) : p.facing;
     p.vx = p.slideDir * clamp(Math.abs(p.vx) * 1.2, SLIDE_V, 720);
-    p.slideT = SLIDE_T; p.h = SLIDE_H;
+    p.slideT = 1.3; p.h = SLIDE_H;
     Sfx.slide(); Fx.dust(p.x, p.y, 6);
   }
 
@@ -726,7 +767,16 @@ const Game = (() => {
       const ta = Math.atan2((sees ? pc.y : (e.lastY || pc.y)) - sh.y, tx - sh.x);
       e.aim = turnTo(e.aim, ta, (d.turn || 3) * turnMul() * dt);
       if (e.reactT > 0) e.reactT -= dt;
-      if (d.melee) {
+      if (d.brute) want = bruteAI(e, dt, sees, pc);
+      else if (d.grenadier) {
+        const adx = pc.x - e.x;
+        if (e.reactT <= 0) {
+          if (e.throwT > 0) { e.throwT -= dt; if (e.throwT <= 0) throwGrenade(e); }
+          else if (e.cd > 0) e.cd -= dt;
+          else if (sees && Math.abs(adx) < 950) e.throwT = 0.5;
+        }
+        if (sees && Math.abs(adx) < 280 && !(e.throwT > 0)) want = -Math.sign(adx) * d.walk;
+      } else if (d.melee) {
         // blade: run you down
         const adx = pc.x - e.x, ady = p.y - e.y;
         if (e.meleeT >= 0) {
@@ -772,7 +822,7 @@ const Game = (() => {
       const ax = e.x + Math.sign(want) * (e.w / 2 + 8);
       if (!room.groundAhead(ax, e.y) || room.boxHit(ax - 2, e.y - e.h + 4, ax + 2, e.y - 22)) want = 0;
     }
-    e.vx = approach(e.vx, want, 1400 * dt);
+    e.vx = e.bstate === 'charge' ? want : approach(e.vx, want, 1400 * dt);
     e.vy = Math.min(e.vy + G * dt, 1500);
     const wasAir = !e.grounded;
     const out = room.moveBody(e, dt, panes);
@@ -780,13 +830,83 @@ const Game = (() => {
     pushCrates(e);
     if (out.pane && Math.abs(e.vx) > 100) breakPane(out.pane, e.vx);
     if (out.landed && wasAir) Fx.dust(e.x, e.y, 4);
-    const melee = d.melee && e.meleeT >= 0 ? clamp(e.meleeT / 0.35, 0, 1) : null;
+    let melee = d.melee && e.meleeT >= 0 ? clamp(e.meleeT / 0.35, 0, 1) : null;
+    if (d.grenadier && e.throwT > 0) melee = 0.25;
+    if (d.brute) melee = e.bstate === 'wind' ? 0.25 : e.bstate === 'punch' ? 1 - e.bt / 0.42 : e.bstate === 'charge' ? 0.9 : null;
     e.body.pose({
-      x: e.x, y: e.y, facing: e.facing, aim: e.aim, vx: e.vx, vy: e.vy, grounded: e.grounded, slide: false, flip: 0,
-      sprint: d.melee && Math.abs(e.vx) > 200, gun: !!d.gun, twoHand: d.gun === 'smg' || d.gun === 'shotgun' || d.gun === 'rifle', melee,
+      x: e.x + (d.brute && e.bstate === 'wind' ? rand(-1.5, 1.5) : 0), y: e.y, facing: e.facing, aim: e.aim, vx: e.vx, vy: e.vy, grounded: e.grounded, slide: false, flip: 0,
+      sprint: (d.melee || d.brute) && Math.abs(e.vx) > 200, gun: !!d.gun, twoHand: d.gun === 'smg' || d.gun === 'shotgun' || d.gun === 'rifle', melee,
       kick: e.kick || 0,
     }, dt);
     if (e.kick) e.kick = Math.max(0, e.kick - dt * 8);
+  }
+
+  // Brute: walk in, wind up (shaking, glowing), then a straight charge. A charge that hits a
+  // wall stuns it; you can jump clean over a charge. Up close it throws a slow punch.
+  function bruteAI(e, dt, sees, pc) {
+    const p = player, adx = pc.x - e.x, ady = p.y - e.y;
+    e.bt = (e.bt || 0) - dt;
+    e.chargeCd = (e.chargeCd || 0) - dt;
+    switch (e.bstate || 'walk') {
+      case 'walk':
+        if (e.reactT > 0) return 0;
+        if (Math.abs(adx) < 60 && Math.abs(ady) < 60) { e.bstate = 'punch'; e.bt = 0.42; e.punched = false; return 0; }
+        if (sees && Math.abs(ady) < 70 && Math.abs(adx) < 560 && Math.abs(adx) > 110 && e.grounded && e.chargeCd <= 0) {
+          e.bstate = 'wind'; e.bt = 0.7; e.chargeDir = Math.sign(adx) || e.facing; Sfx.growl();
+          Fx.text(e.x, e.y - 140, '!!', '#e2434b', 30);
+          return 0;
+        }
+        return Math.sign(adx) * e.def.walk;
+      case 'wind':
+        e.facing = e.chargeDir;
+        if (e.bt <= 0) { e.bstate = 'charge'; e.bt = 1.0; Sfx.swing(); }
+        return 0;
+      case 'charge': {
+        e.facing = e.chargeDir;
+        if (Math.random() < 0.6) Fx.dust(e.x - e.chargeDir * 14, e.y, 1, room.theme.side, 0.5);
+        if (p.alive && Math.abs(p.x - e.x) < 36 && p.y > e.y - 72 && p.y < e.y + 10) killPlayer(e.chargeDir * 1000, -450, e);
+        if (e.blocked) { e.bstate = 'stun'; e.bt = 1.4; shake(9); Sfx.crate(); Fx.dust(e.x + e.chargeDir * 20, e.y - 50, 10, '#c9c9cf', 1); Fx.text(e.x, e.y - 140, 'STUNNED', '#1d2130', 16); return 0; }
+        if (e.bt <= 0) { e.bstate = 'walk'; e.chargeCd = 1.2; return 0; }
+        return e.chargeDir * 650;
+      }
+      case 'stun':
+        if (e.bt <= 0) { e.bstate = 'walk'; e.chargeCd = 0.8; }
+        return 0;
+      case 'punch':
+        if (e.bt < 0.14 && !e.punched) {
+          e.punched = true; Sfx.swing();
+          if (Math.abs(adx) < 72 && Math.abs(ady) < 70 && (Math.sign(adx) || e.facing) === e.facing) killPlayer(e.facing * 750, -320, e);
+        }
+        if (e.bt <= 0) e.bstate = 'walk';
+        return 0;
+      default: e.bstate = 'walk'; return 0;
+    }
+  }
+
+  // grenades land where you were standing; the blast circle shows on the floor while the fuse burns
+  function throwGrenade(e) {
+    const p = player, hand = e.body.pts[J.FHAND];
+    const tx = p.x + p.vx * 0.25 + rand(-30, 30), ty = p.y - 6;
+    const dx = tx - hand.x, dy = ty - hand.y, g = 1500;
+    const T = clamp(Math.abs(dx) / 480, 0.55, 1.1);
+    grenades.push({ x: hand.x, y: hand.y, vx: dx / T, vy: (dy - 0.5 * g * T * T) / T, fuse: T + 0.65, t: 0, R: 105 });
+    e.cd = rand(e.def.cd[0], e.def.cd[1]) * cdMul();
+    Sfx.swing();
+  }
+  function updateGrenades(dt) {
+    for (const gr of grenades) {
+      gr.t += dt; gr.fuse -= dt;
+      gr.vy += 1500 * dt;
+      const nx = gr.x + gr.vx * dt, ny = gr.y + gr.vy * dt;
+      const land = room.platforms.some(pl => nx > pl.x1 && nx < pl.x2 && gr.y <= pl.y && ny >= pl.y);
+      if (room.solidAt(nx, ny, panes) || land) {
+        if (room.solidAt(gr.x, ny, panes) || land) { gr.vy *= -0.32; gr.vx *= 0.65; if (Math.abs(gr.vy) < 60) gr.vy = 0; }
+        else gr.vx *= -0.4;
+        if (Math.abs(gr.vx) + Math.abs(gr.vy) > 120) Sfx.shell();
+      } else { gr.x = nx; gr.y = ny; }
+      if (gr.fuse <= 0) { gr.dead = true; explode(gr.x, gr.y - 6, gr.R, false, false); }
+    }
+    grenades = grenades.filter(g => !g.dead);
   }
 
   function enemyFire(e) {
@@ -863,6 +983,24 @@ const Game = (() => {
               run.deflects++; track('deflects');
               hitstop = Math.max(hitstop, 0.05);
               break;
+            }
+          }
+          if (!alive) break;
+        }
+        if (b.owner === 'p') {
+          for (const gr of grenades) if (!gr.dead && Math.hypot(gr.x - nx, gr.y - ny) < 10) {
+            gr.dead = true; alive = false; explode(gr.x, gr.y - 6, gr.R, true, false); styleEvent(gr.x, gr.y, 'DEFUSED', 80);
+            break;
+          }
+          if (!alive) break;
+          for (const e of enemies) {
+            if (!e.alive || !e.def.shield || b.wallPierce || b.vx * e.facing >= 0) continue;
+            const sx = e.x + e.facing * 18;
+            if (Math.abs(nx - sx) < 5 && ny > e.y - 80 * e.s && ny < e.y - 3) {
+              if (b.blast) { explode(nx, ny, b.blast, true); alive = false; break; }
+              Fx.sparks(nx, ny, Math.atan2(-b.vy, -b.vx), 8, '#ffffff', 380); Sfx.armor();
+              if (b.bounce > 0) { b.bounce--; b.vx = -b.vx; b.ox = nx; b.oy = ny; b.shooter = null; break; }
+              alive = false; break;
             }
           }
           if (!alive) break;
@@ -1054,7 +1192,8 @@ const Game = (() => {
     state = 'dead'; deathT = 0;
     cam.focus = { x: p.x, y: p.y - 50 }; cam.focusT = 1.2;
     setTimeout(() => { if (!p.body.broken && state === 'dead' && player === p) { pieces.push(...p.body.breakApart()); Sfx.crumble(); } }, 900);
-    emit('death', { mode, canRevive: mode === 'endless' && !endless.revived });
+    if (mode === 'endless') run.lives = Math.max(0, run.lives - 1);
+    emit('death', { mode, lives: run.lives, canRevive: mode === 'endless' && run.lives === 0 && !endless.revived });
   }
 
   // a shot barrel hisses and glows for a moment, then goes up
@@ -1145,7 +1284,8 @@ const Game = (() => {
     if (clearT >= 0) clearT += dt;
     if (state === 'dead') {
       const again = deathT > 0.45 && (pressed.has('reload') || pressed.has('jump') || pressed.has('shoot'));
-      if (mode === 'campaign' && (deathT > 2.6 || again)) restartRoom();
+      const retry = mode === 'campaign' || (mode === 'endless' && run.lives > 0);
+      if (retry && (deathT > 2.6 || again)) restartRoom();
       return;
     }
     if (state !== 'play' || !player.alive || !room.door || fade) return;
@@ -1180,24 +1320,16 @@ const Game = (() => {
     if (fade) return;
     fade = {
       phase: 'out', t: 0.12, cb: () => {
-        resetRoomEntities(); snapCamera(); state = 'play'; slowOn = false; focus = Math.max(focus, 0.6);
+        resetRoomEntities(); snapCamera(); state = 'play'; slowOn = false; focus = roomFocus;
         emit('respawn');
       },
     };
   }
+  // endless: an ad buys one more life and a fresh go at the same room
   function revive() {
-    // endless: get back up where you fell, with a moment of grace
-    const p = player;
-    const skin = SKIN[Save.data.skin] || SKINS[0];
-    const np = makeChar(p.x, p.y, { color: skin.body, dark: skin.dark, shine: skin.shine, rainbow: skin.rainbow, hat: Save.data.hat, deadColor: deadCol() });
-    np.isPlayer = true; np.weapon = p.weapon; np.weapon.ammo = WEAPON[np.weapon.id].mag; np.weapon.reloadT = 0; np.pickup = null; np.invuln = 2;
-    if (!p.body.broken) pieces.push(...p.body.breakApart());
-    player = np; endless.revived = true;
-    bullets = bullets.filter(b => b.owner === 'p');
-    for (const e of enemies) { e.reactT = Math.max(e.reactT, 1); e.cd = Math.max(e.cd, 1); e.charge = 0; e.burst = 0; }
-    focus = 1; state = 'play'; deathT = 0;
-    Fx.ring(np.x, np.y - 46, 200, '#7fb0e2', 8, 0.6);
-    Sfx.slowIn();
+    endless.revived = true;
+    run.lives = 1;
+    restartRoom();
   }
 
   function completeLevel() {
@@ -1249,7 +1381,13 @@ const Game = (() => {
     for (const g of pickups) drawPickup(g);
     for (const pc of pieces) drawPiece(ctx, pc);
     for (const cb of corpses) cb.draw(ctx);
-    for (const e of enemies) if (e.alive) { drawLaser(e); e.body.draw(ctx); }
+    for (const e of enemies) if (e.alive) {
+      drawLaser(e);
+      if (e.def.brute && e.bstate === 'wind') Glow.draw(ctx, '#ff3344', e.x, e.y - 55, 70, 0.35 + 0.25 * Math.sin(clock * 30));
+      e.body.draw(ctx);
+      if (e.def.shield) drawShield(e);
+    }
+    drawGrenades();
     drawGhosts();
     if (state !== 'menu' || true) player.body.draw(ctx);
     if (player.invuln > 0 && player.alive) { ctx.globalAlpha = 0.3 + 0.3 * Math.sin(clock * 30); Glow.draw(ctx, '#7fb0e2', player.x, player.y - 46, 70, 0.5); ctx.globalAlpha = 1; }
@@ -1354,6 +1492,26 @@ const Game = (() => {
       }
     }
   }
+  function drawShield(e) {
+    const f = e.facing, x = e.x + f * 18, y0 = e.y - 80 * e.s, y1 = e.y - 3;
+    ctx.globalAlpha = 0.9;
+    prism(ctx, [[x - 4, y0], [x + 4, y0], [x + 4, y1], [x - 4, y1]], ZP - 0.11, ZP + 0.11, '#2b2f3b', '#454b5c', '#1d2029');
+    ctx.globalAlpha = 1;
+    prism(ctx, [[x - 4.5, y0 + 8], [x + 4.5, y0 + 8], [x + 4.5, y0 + 20], [x - 4.5, y0 + 20]], ZP - 0.115, ZP + 0.115, 'rgba(150,180,210,0.75)', 'rgba(190,215,240,0.8)', 'rgba(110,140,170,0.75)');
+  }
+  function drawGrenades() {
+    for (const gr of grenades) {
+      const gy = groundBelow(gr.x, gr.y - 4);
+      if (gy != null) {
+        const a = 0.18 + 0.14 * Math.sin(clock * 18);
+        ctx.fillStyle = `rgba(255,51,68,${a})`; ctx.strokeStyle = `rgba(255,51,68,${a + 0.3})`; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(gr.x, gy, gr.R * 0.9, 9, 0, 0, TAU); ctx.fill(); ctx.stroke();
+      }
+      ctx.fillStyle = '#3f4a32'; ctx.beginPath(); ctx.arc(gr.x, gr.y - 5, 6, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#5d6b4a'; ctx.beginPath(); ctx.arc(gr.x - 1.5, gr.y - 6.5, 3, 0, TAU); ctx.fill();
+      if (Math.sin(clock * (14 + 20 / Math.max(0.2, gr.fuse))) > 0) Glow.draw(ctx, '#ff3344', gr.x, gr.y - 9, 10, 0.95);
+    }
+  }
   function drawCrate(c) {
     const th = room.theme;
     const mat = crateMaterial(th);
@@ -1366,38 +1524,61 @@ const Game = (() => {
     drawCrateFace(ctx, c.L, mat);
     ctx.restore();
   }
-  // matte, minimal drum: two flat tones for the roundness, thin ribs, a lid and one white mark
+  // A matte drum built as a real cylinder: 14 flat-shaded facets around a vertical axis in depth,
+  // a lid seen from above, two ribs and a single white mark on the face toward you.
   function drawBarrel(br) {
-    const w = br.w, h = br.h;
     const lit = br.fuse >= 0 ? 1 - br.fuse / 0.34 : 0;
     const jx = lit ? rand(-1.6, 1.6) * lit : 0;
-    const x0 = br.x - w / 2 + jx, y0 = br.y - h, cx = br.x + jx;
+    const cx = br.x + jx, y0 = br.y - br.h, y1 = br.y, r = br.w / 2, rz = 0.1;
+    const V = View.V;
+    const P = (x, y, z) => { const k = View.k(z); return [V.x + (x - V.x) * k, V.y + (y - V.y) * k]; };
     const dark = room.theme.dark;
-    const base = dark ? '#d8692e' : '#ee7a3a', side = dark ? '#b8552a' : '#d6662c', rib = dark ? '#a24a24' : '#c45a28', lid = dark ? '#e88a52' : '#f59a62';
-    // far side, pushed toward the vanishing point
-    const V = View.V, kz = View.k(ZP + 0.13) - 1;
-    const ox = (cx - V.x) * kz, oy = (y0 + h / 2 - V.y) * kz;
-    ctx.fillStyle = shade(side, -0.2);
-    ctx.beginPath(); ctx.roundRect(x0 + ox, y0 + oy, w, h, 4); ctx.fill();
-    // body: flat light half and flat shaded half
-    ctx.fillStyle = base; ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 4); ctx.fill();
-    ctx.fillStyle = side; ctx.beginPath(); ctx.roundRect(x0 + w * 0.62, y0, w * 0.38, h, [0, 4, 4, 0]); ctx.fill();
-    // ribs
-    ctx.fillStyle = rib;
-    ctx.fillRect(x0, y0 + 11, w, 2); ctx.fillRect(x0, y0 + h - 12, w, 2);
-    // lid
-    ctx.fillStyle = lid; ctx.beginPath(); ctx.ellipse(cx, y0 + 1, w / 2, 3.5, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = rib; ctx.fillRect(cx + 5, y0 - 1.5, 4, 2.5);
-    // one clean white flame mark
-    const my = y0 + h / 2 + 0.5;
+    const base = dark ? '#d8692e' : '#ec7738', N = 14;
+    const ring = [];
+    for (let i = 0; i <= N; i++) { const t = i / N * TAU; ring.push([cx + Math.cos(t) * r, ZP + Math.sin(t) * rz, t]); }
+    const facets = [];
+    for (let i = 0; i < N; i++) {
+      const tm = (i + 0.5) / N * TAU, nx = Math.cos(tm), nz = Math.sin(tm);
+      if (nz > 0.35) continue;                                   // far side, hidden
+      facets.push({ a: ring[i], b: ring[i + 1], z: ZP + nz * rz, light: clamp(0.62 - nz * 0.25 - nx * 0.28, 0.25, 1) });
+    }
+    facets.sort((p1, p2) => p2.z - p1.z);
+    const flash = lit ? (Math.sin(clock * 60) > 0 ? 0.55 : 0.12) * lit : 0;
+    for (const f of facets) {
+      const col = mixHex(shade(base, (f.light - 0.62) * 0.9), '#ffffff', flash);
+      const a0 = P(f.a[0], y0, f.a[1]), a1 = P(f.b[0], y0, f.b[1]), b1 = P(f.b[0], y1, f.b[1]), b0 = P(f.a[0], y1, f.a[1]);
+      ctx.fillStyle = col; ctx.strokeStyle = col; ctx.lineWidth = 0.6;
+      ctx.beginPath(); ctx.moveTo(a0[0], a0[1]); ctx.lineTo(a1[0], a1[1]); ctx.lineTo(b1[0], b1[1]); ctx.lineTo(b0[0], b0[1]); ctx.closePath(); ctx.fill(); ctx.stroke();
+      // ribs
+      ctx.fillStyle = shade(col, -0.16);
+      for (const ry of [y0 + 10, y1 - 11]) {
+        const c0 = P(f.a[0], ry, f.a[1]), c1 = P(f.b[0], ry, f.b[1]), d1 = P(f.b[0], ry + 2.5, f.b[1]), d0 = P(f.a[0], ry + 2.5, f.a[1]);
+        ctx.beginPath(); ctx.moveTo(c0[0], c0[1]); ctx.lineTo(c1[0], c1[1]); ctx.lineTo(d1[0], d1[1]); ctx.lineTo(d0[0], d0[1]); ctx.closePath(); ctx.fill();
+      }
+    }
+    // lid, when we look down on it
+    if (V.y < y0) {
+      ctx.fillStyle = mixHex(shade(base, 0.18), '#ffffff', flash);
+      ctx.beginPath();
+      ring.forEach(([x, z], i) => { const q = P(x, y0, z); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = shade(base, -0.05); ctx.lineWidth = 1;
+      ctx.beginPath();
+      ring.forEach(([x, z], i) => { const q = P(cx + (x - cx) * 0.72, y0, ZP + (z - ZP) * 0.72); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
+      ctx.closePath(); ctx.stroke();
+      const cap = P(cx + r * 0.45, y0, ZP - rz * 0.1);
+      ctx.fillStyle = shade(base, -0.3); ctx.fillRect(cap[0] - 2, cap[1] - 1.5, 4, 3);
+    }
+    // one white flame mark on the front
+    const k = View.k(ZP - rz), m = P(cx, (y0 + y1) / 2, ZP - rz);
+    ctx.save(); ctx.translate(m[0], m[1]); ctx.scale(k, k);
     ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    ctx.beginPath(); ctx.moveTo(cx - 1, my - 7); ctx.quadraticCurveTo(cx + 6, my - 1, cx + 3, my + 5); ctx.quadraticCurveTo(cx - 1, my + 7.5, cx - 5, my + 4); ctx.quadraticCurveTo(cx - 6, my - 1, cx - 1, my - 7); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-1, -7); ctx.quadraticCurveTo(6, -1, 3, 5); ctx.quadraticCurveTo(-1, 7.5, -5, 4); ctx.quadraticCurveTo(-6, -1, -1, -7); ctx.fill();
     ctx.fillStyle = base;
-    ctx.beginPath(); ctx.moveTo(cx - 0.5, my - 0.5); ctx.quadraticCurveTo(cx + 2.5, my + 2.5, cx + 0.5, my + 5); ctx.quadraticCurveTo(cx - 2.5, my + 4.5, cx - 2, my + 2); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-0.5, -0.5); ctx.quadraticCurveTo(2.5, 2.5, 0.5, 5); ctx.quadraticCurveTo(-2.5, 4.5, -2, 2); ctx.closePath(); ctx.fill();
+    ctx.restore();
     if (lit) {
-      ctx.fillStyle = `rgba(255,255,255,${(Math.sin(clock * 60) > 0 ? 0.55 : 0.12) * lit + 0.08})`;
-      ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 4); ctx.fill();
-      Glow.draw(ctx, '#ff6a3d', cx, y0 + h / 2, 36 + 26 * lit, 0.35 + 0.35 * lit);
+      Glow.draw(ctx, '#ff6a3d', cx, y0 + br.h / 2, 36 + 26 * lit, 0.35 + 0.35 * lit);
       Glow.draw(ctx, '#fff2b0', cx + 7, y0 - 2, 9 + 5 * Math.random(), 0.9);
     }
   }
@@ -1497,14 +1678,14 @@ const Game = (() => {
 
   /* ------------------------------------------------------------- api */
   return {
-    init, resize, update, render, on, setKey, press, setMouse, setAxis, setAimStick,
+    init, resize, update, render, on, setKey, press, setMouse, setAxis, setAimStick, setTouchTarget,
     startMenu, startLevel, startEndless, restartRoom, revive, endEndless, toggleSlow,
     get state() { return state; }, get mode() { return mode; }, get paused() { return paused; },
     set paused(v) { paused = v; },
     get focus() { return focus; }, get slowOn() { return slowOn; }, get ts() { return ts; },
     get run() { return run; }, get level() { return level; }, get levelIdx() { return levelIdx; }, get roomIdx() { return roomIdx; },
     get roomCount() { return mode === 'endless' ? endless.n + 1 : level.rooms.length; },
-    get endless() { return endless; },
+    get endless() { return endless; }, get lives() { return run ? run.lives : 0; },
     get player() { return player; }, get enemiesLeft() { return enemies.filter(e => e.alive).length; },
     get weaponInfo() {
       if (!player) return null;
@@ -1515,6 +1696,7 @@ const Game = (() => {
     get input() { return input; },
     get doorOpen() { return doorOpen; },
     setMenuInset(px) { menuInset = px; },
+    debugSpawn(type, x) { const e = makeEnemy(type, x, player.y, false); enemies.push(e); return e; },
     debugRoom(i) { loadRoom(i); state = 'play'; },
     debugClear() { for (const e of enemies) if (e.alive) killEnemy(e, 300, -200, J.NECK, { head: false }); },
     get enemies() { return enemies; }, get pieces() { return pieces; }, worldToScreen,

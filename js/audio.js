@@ -110,6 +110,7 @@ const Sfx = (() => {
   function spin(k) { if (!ensure()) return; tone(180 + k * 700, 0.09, 'sawtooth', 0.03, 1.2); }
   function charged() { if (!ensure()) return; tone(1500, 0.25, 'sine', 0.1, 1.3); tone(2250, 0.2, 'sine', 0.06, 1.2, 0.03); }
   function split() { if (!ensure()) return; tone(2200, 0.06, 'square', 0.03, 0.6); }
+  function growl() { if (!ensure()) return; tone(70, 0.6, 'sawtooth', 0.12, 0.7); noise(0.5, 0.25, 400, 'lowpass', 2); }
   function alarm() { if (!ensure()) return; for (let i = 0; i < 3; i++) { tone(1180, 0.09, 'square', 0.05, 0.85, i * 0.16); tone(880, 0.09, 'square', 0.04, 0.85, i * 0.16 + 0.08); } }
   function smash() { if (!ensure()) return; for (let i = 0; i < 4; i++) { noise(0.08, 0.22, rand(500, 1300), 'bandpass', 2, i * 0.035); tone(rand(130, 220), 0.06, 'triangle', 0.1, 0.6, i * 0.035); } }
   function fuse() { if (!ensure()) return; noise(0.35, 0.22, 4000, 'highpass', 0.8); tone(900, 0.3, 'square', 0.03, 1.8); }
@@ -230,7 +231,7 @@ const Sfx = (() => {
   function suspend(s) { if (ac) s ? ac.suspend() : ac.resume(); }
 
   return {
-    ensure, shot, enemyShot, spin, charged, split, fuse, alarm, smash, dry, reload, shell, whiz, ricochet, wallHit, deflect, laser, hit, armor, crumble, thud, hurtPlayer, swing,
+    ensure, shot, enemyShot, spin, charged, split, fuse, alarm, smash, growl, dry, reload, shell, whiz, ricochet, wallHit, deflect, laser, hit, armor, crumble, thud, hurtPlayer, swing,
     glass, boom, crate, step, jump, land, slide, flip, slowIn, slowOut, heartbeat, door, clear, click, coin, star, combo, win, lose,
     unlock, denied, setTime, setIntensity, setSfx, setMusic, setMusicPaused, setAdMuted, setPlatformMute, suspend,
   };
