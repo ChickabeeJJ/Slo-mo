@@ -38,6 +38,7 @@ const UI = (() => {
     Game.on('death', onDeath);
     Game.on('respawn', () => { $('death').classList.add('hidden'); updateChip(); });
     Game.on('room', () => { updateChip(); });
+    Game.on('flipReload', () => { const a = $('ammo'); a.classList.remove('flash'); void a.offsetWidth; a.classList.add('flash'); });
     Game.on('start', () => { updateChip(); $('death').classList.add('hidden'); });
     Game.on('mission', m => toast('Mission complete: ' + m.text, 'scroll'));
     Game.on('noFocus', () => { const f = $('focus'); f.classList.add('empty'); setTimeout(() => f.classList.remove('empty'), 400); });
@@ -345,7 +346,7 @@ const UI = (() => {
   }
 
   /* -------------------------------------------------------------- hud */
-  let lastAmmoKey = '', lastArmorKey = '';
+  let lastAmmoKey = '', lastArmorKey = '', lastFlips = -1, flipAnimT = 0;
   function tick(dt) {
     previewT += dt;
     if (screen === 'armory') renderPreview(previewT);
@@ -379,6 +380,22 @@ const UI = (() => {
         $('ammo').classList.toggle('reloading', w.reload);
         $('ammoHint').innerHTML = w.pickup ? 'NO RELOAD · DROPS WHEN EMPTY' : '<kbd>R</kbd> RELOAD';
       }
+    }
+    // flip counter: pips for flips left, a bar that fills while you're grounded, then they all pop back
+    const fi = Game.flipInfo;
+    if (fi) {
+      const fl = $('flips');
+      if (fi.left !== lastFlips) {
+        if (lastFlips >= 0) {
+          fl.classList.remove('pop', 'used'); void fl.offsetWidth;
+          fl.classList.add(fi.left > lastFlips ? 'pop' : 'used');
+          clearTimeout(flipAnimT); flipAnimT = setTimeout(() => fl.classList.remove('pop', 'used'), 460);
+        }
+        lastFlips = fi.left;
+        [...$('flipPips').children].forEach((el, i) => el.classList.toggle('off', i >= fi.left));
+        fl.classList.toggle('empty', fi.left <= 0);
+      }
+      $('flipCharge').style.transform = `scaleX(${fi.recharge.toFixed(3)})`;
     }
     $('tbGrab').classList.toggle('hidden', !Game.nearPickup);
     const ah = Game.armorState, key = ah.map(a => a ? a.slot + a.hp : '-').join();

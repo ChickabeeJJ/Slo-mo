@@ -11,6 +11,7 @@ const Icons = (() => {
     heart: `<path d="M12 20.5S3.5 15 3.5 9A4.5 4.5 0 0 1 12 6.6 4.5 4.5 0 0 1 20.5 9c0 6-8.5 11.5-8.5 11.5z" ${F}/>`,
     star: `<path d="m12 2.8 2.8 5.9 6.4.8-4.7 4.4 1.2 6.4L12 17.2l-5.7 3.1 1.2-6.4-4.7-4.4 6.4-.8z" ${F}/>`,
     coin: `<circle cx="12" cy="12" r="9" ${F}/><circle cx="12" cy="12" r="6" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1.6"/><path d="M12 8v8" stroke="rgba(0,0,0,.3)" stroke-width="2.2" stroke-linecap="round"/>`,
+    flip: `<path d="M4.6 13.2A7.5 7.5 0 1 0 7 6.6" ${S}/><path d="M7.6 2.6 7 6.8l4.2.6" ${S}/><circle cx="12" cy="12.6" r="1.9" ${F}/>`,
     pause: `<path d="M8.5 5v14M15.5 5v14" ${S} stroke-width="3.4"/>`,
     adv: `<path fill-rule="evenodd" d="M5.5 4.5h13a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-13a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3zM10 8.4v7.2l6-3.6z" ${F}/>`,
     play: `<path d="M7 4.5v15l12.5-7.5z" ${F}/>`,

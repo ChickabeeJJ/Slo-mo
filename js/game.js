@@ -576,6 +576,12 @@ const Game = (() => {
         p.flipChain++;
         if (p.flipChain > 1) Fx.text(p.x, p.y - 120, 'FLIP x' + p.flipChain, '#1d2130', 14);
         Sfx.flip();
+        // a flip reloads your own gun on the way round (grabbed guns still can't be reloaded)
+        const mag = WEAPON[p.weapon.id].mag;
+        if (p.weapon.ammo < mag || p.weapon.reloadT > 0) {
+          p.weapon.ammo = mag; p.weapon.reloadT = 0; p.weapon.burstLeft = 0;
+          Sfx.reload(); emit('flipReload');
+        }
       } else {
         if (Math.abs(p.vx) > 320) { p.vx *= 0.85; Fx.text(p.x, p.y - 120, 'OUT OF FLIPS', '#e2434b', 13); }
         Sfx.jump();
@@ -1885,6 +1891,11 @@ const Game = (() => {
       if (!player) return null;
       const w = curWeapon(), ws = player.pickup || player.weapon;
       return { name: w.name, ammo: ws.ammo, mag: player.pickup ? null : w.mag, reload: !player.pickup && player.weapon.reloadT > 0, pickup: !!player.pickup };
+    },
+    get flipInfo() {
+      if (!player) return null;
+      const used = player.flipChain || 0;
+      return { max: FLIP_CHAIN, left: FLIP_CHAIN - used, recharge: used > 0 && player.grounded ? clamp((player.groundT || 0) / 0.5, 0, 1) : 0 };
     },
     get nearPickup() { return player && player.nearPickup; },
     get input() { return input; },
