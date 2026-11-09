@@ -152,8 +152,8 @@ const Game = (() => {
     clearT = -1; roomT = 0; deathT = 0;
     forcedT = 0; hitstop = 0;
   }
-  // Armour durability lasts a whole level (or Endless run): it carries from room to room, a room
-  // retry gives back what you walked in with, and it's fully repaired when a level starts.
+  // Armour durability lasts a whole level (or Endless run): damage carries from room to room and
+  // through deaths and retries, and it's only fully repaired when a level starts.
   function applyArmor(p, snap) {
     p.armorHp = {}; p.blastUsed = snap ? snap.blastUsed : false; p.armorInv = 0;
     const show = {}, broken = {};
@@ -685,9 +685,18 @@ const Game = (() => {
 
     // ---- pose
     let slideFront = null, slideBack = null, slope = 0;
-    if (sliding && p.grounded) {
+    let poseX = p.x;
+    if (sliding) {
+      // measured in the air too: a mid-air slide lies flat, so it must fold up against walls
       const free = dir => { for (let k = 6; k <= 60; k += 3) if (room.solidAt(p.x + dir * k, p.y - 8, panes) || room.solidAt(p.x + dir * k, p.y - 26, panes)) return k; return 60; };
       slideFront = free(p.facing); slideBack = free(-p.facing);
+    } else if (p.flipping) {
+      // a tucked flip is wider than the hitbox: draw it nudged off any wall it would poke into
+      const free = dir => { for (let k = 8; k <= 34; k += 2) if (room.solidAt(p.x + dir * k, p.y - 30, panes) || room.solidAt(p.x + dir * k, p.y - 52, panes) || room.solidAt(p.x + dir * k, p.y - 74, panes)) return k; return 34; };
+      const fr = free(1), fl = free(-1);
+      poseX = p.x + (34 - fl) - (34 - fr);
+    }
+    if (sliding && p.grounded) {
       const gF = groundBelow(p.x + p.facing * 22, p.y - 24), gB = groundBelow(p.x - p.facing * 22, p.y - 24);
       if (gF != null && gB != null) slope = clamp(Math.atan2(gF - gB, 44), -0.45, 0.45);
     }
@@ -696,7 +705,7 @@ const Game = (() => {
     p.body.gunId = ww.id;
     p.body.dual = !!ww.dual;
     p.body.pose({
-      x: p.x, y: p.y, facing: p.facing, aim: p.aim, vx: p.vx, vy: p.vy, grounded: p.grounded || p.airSlide, slide: sliding, flip: p.flipping ? p.flip * p.flipDir : 0,
+      x: poseX, y: p.y, facing: p.facing, aim: p.aim, vx: p.vx, vy: p.vy, grounded: p.grounded || p.airSlide, slide: sliding, flip: p.flipping ? p.flip * p.flipDir : 0,
       sprint: p.sprinting, gun: true, twoHand: TWO_HAND.has(ww.id), dual: ww.dual, kick: p.weapon.kick, kick2: p.weapon.kick2,
       slideFront, slideBack, slope: p.slopeS,
       reload: !p.pickup && p.weapon.reloadT > 0 ? 1 - p.weapon.reloadT / WEAPON[p.weapon.id].reload : 0,
@@ -1466,6 +1475,8 @@ const Game = (() => {
     if (!force && state === 'dead' && deathT < RETRY_DELAY) return;
     fade = {
       phase: 'out', t: 0.12, cb: () => {
+        // armour keeps the damage it took before you died (repaired only when a new level starts)
+        if (mode !== 'menu' && player && player.armorHp) roomArmor = { slots: JSON.parse(JSON.stringify(player.armorHp)), blastUsed: player.blastUsed };
         resetRoomEntities(); snapCamera(); state = 'play'; slowOn = false; focus = roomFocus;
         emit('respawn');
       },
@@ -1869,7 +1880,7 @@ const Game = (() => {
     get roomCount() { return mode === 'endless' ? endless.n + 1 : level.rooms.length; },
     get armorState() { return player && player.armorHp ? ['head', 'body', 'legs'].map(s => player.armorHp[s] ? Object.assign({ slot: s }, player.armorHp[s]) : null) : []; },
     get endless() { return endless; }, get lives() { return run ? run.lives : 0; },
-    get player() { return player; }, get enemiesLeft() { return enemies.filter(e => e.alive).length; },
+    get room() { return room; }, get player() { return player; }, get enemiesLeft() { return enemies.filter(e => e.alive).length; },
     get weaponInfo() {
       if (!player) return null;
       const w = curWeapon(), ws = player.pickup || player.weapon;

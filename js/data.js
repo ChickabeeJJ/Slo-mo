@@ -15,7 +15,7 @@ const WEAPONS = [
   { id: 'smg', name: 'SMG', price: 700, mag: 26, rate: 0.13, reload: 1.4, spread: 0.06, auto: true, len: 20, desc: 'Hold to spray.' },
   { id: 'burst', name: 'Burst Rifle', price: 850, mag: 21, rate: 0.75, reload: 1.5, spread: 0.02, burst: 3, burstGap: 0.08, len: 26, desc: 'Three-round burst on every click.' },
   { id: 'shotgun', name: 'Shotgun', price: 1000, mag: 5, rate: 1.0, reload: 1.5, spread: 0.2, pellets: 6, life: 0.7, len: 26, kick: 2.4, big: true, desc: 'Six pellets. Point blank is lethal.' },
-  { id: 'bouncer', name: 'Ricochet', price: 1150, mag: 8, rate: 0.5, reload: 1.3, spread: 0.01, bounce: 3, life: 3.5, len: 18, desc: 'Rounds bounce off walls 3 times. Bank your shots.' },
+  { id: 'bouncer', name: 'Ricochet', price: 1150, mag: 6, rate: 0.5, reload: 1.3, spread: 0.01, bounce: 3, life: 3.5, len: 18, desc: 'Rounds bounce off walls 3 times. Bank your shots.' },
   { id: 'splitter', name: 'Splitter', price: 1300, mag: 7, rate: 0.6, reload: 1.4, spread: 0.01, split: { t: 0.24, n: 2, a: 0.22 }, len: 20, desc: 'Each round splits into three mid-flight.' },
   { id: 'dual', name: 'Twin Pistols', price: 1400, mag: 18, rate: 0.2, reload: 1.3, spread: 0.02, dual: true, len: 16, desc: 'One in each hand. Click fast.' },
   { id: 'smart', name: 'Seeker', price: 1650, mag: 10, rate: 0.45, reload: 1.3, spread: 0.02, homing: 3.2, life: 3, len: 18, desc: 'Rounds curve toward the nearest enemy.' },
