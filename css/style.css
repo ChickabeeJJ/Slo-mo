@@ -127,7 +127,12 @@ kbd { display: inline-block; font-family: var(--font); font-weight: 800; font-si
 .home-menu .btn-row .btn { min-height: 62px; font-size: 14px; }
 .title { display: flex; align-items: flex-end; gap: 10px; line-height: 0.9; font-weight: 900; letter-spacing: -0.01em; }
 .title .t1 { font-size: 72px; color: #fff; }
-.title .t2 { padding: 2px 22px 4px 18px; font-size: 66px; font-style: italic; color: var(--acc-ink); background: var(--acc); clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 100%, 14px 100%); }
+.title .t2 {
+  padding: 2px 22px 4px 20px; font-size: 66px; color: var(--acc-ink); background: var(--acc);
+  /* slants down to the right, with the cut top-left and bottom-right corners */
+  clip-path: polygon(10px 0, calc(100% - 14px) 0, calc(100% - 2px) calc(100% - 10px), calc(100% - 10px) 100%, 14px 100%, 2px 10px);
+}
+.title .t2 i { display: inline-block; font-style: normal; transform: skewX(10deg); }   /* letters lean back, matching the slant */
 .tagline { font-weight: 800; font-size: 12px; letter-spacing: 0.22em; color: var(--muted); margin-top: -6px; }
 .home-menu { display: flex; flex-direction: column; gap: 8px; }
 .btn-row { display: flex; gap: 8px; }
