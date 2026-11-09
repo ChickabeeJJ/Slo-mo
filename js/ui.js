@@ -515,7 +515,7 @@ const UI = (() => {
       </div>
 `);
     $('pResume').onclick = () => { click(); resume(); };
-    if ($('pRoom')) $('pRoom').onclick = () => { click(); resume(); Game.restartRoom(); };
+    if ($('pRoom')) $('pRoom').onclick = () => { click(); resume(); Game.restartRoom(true); };
     if ($('pLevel')) $('pLevel').onclick = () => { click(); play(Game.levelIdx); };
     if ($('pEnd')) $('pEnd').onclick = () => { click(); closeModal(); Game.paused = false; endEndlessRun(); };
     $('pSettings').onclick = () => { click(); openSettings(true); };

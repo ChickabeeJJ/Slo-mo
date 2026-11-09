@@ -9,6 +9,7 @@ const Game = (() => {
   const G = 2500, WALK = 250, SPRINT = 425, ACC_G = 3200, ACC_A = 1800, JUMP_V = 840;
   const SLIDE_V = 610, SLIDE_T = 0.55, STAND_H = 92, SLIDE_H = 28;
   const SLOW_SCALE = 0.26;
+  const RETRY_DELAY = 0.9;         // seconds after dying before a click/tap/key restarts the room
 
   let canvas, ctx, dpr = 1, sw = 0, sh = 0;
   const cam = { x: 0, y: 0, zoom: 1, shake: 0, kick: 0, kx: 0, ky: 0, focus: null, focusT: 0 };
@@ -110,10 +111,11 @@ const Game = (() => {
 
   function roomDef(i) { return mode === 'endless' ? endlessRoom(endless.seed, i) : level.rooms[i]; }
 
-  let roomFocus = 1;
+  let roomFocus = 1, roomPickup = null;     // what you walked into the room with
   function loadRoom(i) {
     roomIdx = i;
     roomFocus = i === 0 && mode === 'campaign' ? 1 : focus;    // a retry starts with what you walked in with
+    roomPickup = i > 0 && player && player.alive && player.pickup ? { id: player.pickup.id, ammo: player.pickup.ammo } : null;
     const def = roomDef(i);
     room = new Room(def, mode === 'endless' ? def.theme : level.theme);
     resetRoomEntities();
@@ -132,7 +134,7 @@ const Game = (() => {
     player.isPlayer = true;
     const w = WEAPON[Save.data.weapon] || WEAPONS[0];
     player.weapon = { id: w.id, ammo: w.mag, cd: 0, reloadT: 0, kick: 0, kick2: 0, alt: 0 };
-    player.pickup = null;
+    player.pickup = roomPickup && mode !== 'menu' ? { id: roomPickup.id, ammo: roomPickup.ammo, cd: 0.2, held: true } : null;
     player.facing = 1; player.aim = 0;
     for (const d of room.enemyDefs) enemies.push(makeEnemy(d.type, d.x, d.y, d.away));
     ambushes = room.ambushDefs.map(a => Object.assign({}, a, { state: 'wait', t: 0, anim: 0 }));
@@ -1314,7 +1316,7 @@ const Game = (() => {
   function checkRoomFlow(dt) {
     if (clearT >= 0) clearT += dt;
     if (state === 'dead') {
-      const again = deathT > 0.45 && (pressed.has('reload') || pressed.has('jump') || pressed.has('shoot'));
+      const again = deathT > RETRY_DELAY && (pressed.has('reload') || pressed.has('jump') || pressed.has('shoot'));
       const retry = mode === 'campaign' || (mode === 'endless' && run.lives > 0);
       if (retry && (deathT > 2.6 || again)) restartRoom();
       return;
@@ -1347,8 +1349,10 @@ const Game = (() => {
     if (!room.door) return null;
     return { open: true, anim: easeInOut(doorAnim), left: 0, near: doorNear };
   }
-  function restartRoom() {
+  // force: the pause menu's Restart Room skips the short post-death delay
+  function restartRoom(force) {
     if (fade) return;
+    if (!force && state === 'dead' && deathT < RETRY_DELAY) return;
     fade = {
       phase: 'out', t: 0.12, cb: () => {
         resetRoomEntities(); snapCamera(); state = 'play'; slowOn = false; focus = roomFocus;
