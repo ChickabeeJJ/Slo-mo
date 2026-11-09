@@ -110,7 +110,7 @@ index.html
 css/style.css     UI: ink panels with cut corners, keycaps, HUD, touch controls
 js/util.js        math, seeded RNG, colour helpers, glow sprite cache
 js/platform.js    CrazyGames SDK v3 wrapper: events, ads, banners, accounts, data
-js/audio.js       synthesized guns, impacts, glass and explosions; streams the music track (assets/audio, 50% volume) and slows it in slow motion
+js/audio.js       synthesized guns, impacts, glass and explosions; streams the music track (assets/audio, 30% volume) and slows it in slow motion
 js/data.js        weapons, enemy archetypes, skins, hats, missions, style table
 js/levels.js      map legend, themes, chapters, handcrafted levels, room generator
 js/progress.js    save data, armory, daily missions, login streak

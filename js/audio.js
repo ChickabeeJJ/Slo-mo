@@ -2,7 +2,7 @@
 /* =========================================================================
    Audio: sound effects are synthesized with WebAudio. The music is the
    "Sector Breach" track (assets/audio), streamed and routed through the same
-   music bus at 50% volume; a synth loop stands in if the file can't play.
+   music bus at 30% volume; a synth loop stands in if the file can't play.
    Slow motion runs the whole mix through a low-pass filter, drops the pitch
    of new sounds and literally slows the music down.
    ========================================================================= */
@@ -11,7 +11,7 @@ const Sfx = (() => {
   let ac = null, master = null, slowFilter = null, sfxBus = null, musicBus = null, noiseBuf = null;
   let sfxOn = true, musicOn = true, musicPaused = true, adMuted = false, platMuted = false;
   let pitch = 1, timeScale = 1, musicTimer = null, mstep = 0, nextAt = 0, intensity = 0, musicTarget = 0;
-  const TRACK_URL = 'assets/audio/sector-breach.mp3', TRACK_VOL = 0.5;
+  const TRACK_URL = 'assets/audio/sector-breach.mp3', TRACK_VOL = 0.3;
   let track = null, trackOk = false;
 
   function ensure() {
