@@ -124,21 +124,30 @@ const UI = (() => {
   }
 
   /* ------------------------------------------------------------ armory */
-  function itemsFor(tab) { return tab === 'weapon' ? WEAPONS : tab === 'skin' ? SKINS : HATS; }
-  function equipped(tab) { return tab === 'weapon' ? S().weapon : tab === 'skin' ? S().skin : S().hat; }
+  function itemsFor(tab) { return tab === 'weapon' ? WEAPONS : tab === 'skin' ? SKINS : tab === 'armor' ? ARMOR : HATS; }
+  function equipped(tab, id) {
+    if (tab === 'armor') { const a = ARMOR_BY[id]; return a && S().armor[a.slot] === id ? id : (S().armor.head || S().armor.body || S().armor.legs || 'hood'); }
+    return tab === 'weapon' ? S().weapon : tab === 'skin' ? S().skin : S().hat;
+  }
+  const isEquipped = (tab, id) => (tab === 'armor' ? S().armor[ARMOR_BY[id].slot] === id : equipped(tab) === id);
+  const SLOT_NAME = { head: 'HEAD', body: 'BODY', legs: 'LEGS' };
   function renderArmory() {
     document.querySelectorAll('.coin-val').forEach(e => { e.textContent = fmt(S().coins); });
     $('armoryTabs').querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.tab === armoryTab));
     const list = itemsFor(armoryTab);
-    if (!armorySel) armorySel = equipped(armoryTab);
+    if (!armorySel || !Save.itemOf(armoryTab, armorySel)) armorySel = armoryTab === 'armor' ? (S().armor.body || S().armor.head || S().armor.legs || ARMOR[0].id) : equipped(armoryTab);
+    let lastSlot = null;
     $('armoryGrid').innerHTML = list.map(it => {
-      const own = Save.owns(armoryTab, it.id), eq = equipped(armoryTab) === it.id;
+      const own = Save.owns(armoryTab, it.id), eq = isEquipped(armoryTab, it.id);
+      const head = armoryTab === 'armor' && it.slot !== lastSlot ? `<h3 class="grid-head">${SLOT_NAME[it.slot]}<small>${S().armor[it.slot] ? 'WEARING ' + ARMOR_BY[S().armor[it.slot]].name.toUpperCase() : 'NOTHING EQUIPPED'}</small></h3>` : '';
+      lastSlot = it.slot;
       let tag;
       if (eq) tag = '<small class="eq">EQUIPPED</small>';
       else if (own) tag = '<small class="own">OWNED</small>';
-      else if (it.stars) tag = `<small><span class="ic star" data-icon="star"></span>${it.stars} STARS</small>`;
+      else if (it.stars) tag = `<small><span class="ic star" data-icon="star"></span>FREE AT ${it.stars}</small>`;
       else tag = `<small><span class="ic coin" data-icon="coin"></span>${fmt(it.price)}</small>`;
-      return `<button class="item ${armorySel === it.id ? 'sel' : ''}" data-id="${it.id}"><canvas width="192" height="128"></canvas><b>${it.name}</b>${tag}</button>`;
+      const abil = it.ability ? `<i class="tag">${ARMOR_ABILITY[it.ability]}</i>` : '';
+      return `${head}<button class="item ${armorySel === it.id ? 'sel' : ''}" data-id="${it.id}">${abil}<canvas width="192" height="128"></canvas><b>${it.name}</b>${tag}</button>`;
     }).join('');
     Icons.hydrate($('armoryGrid'));
     $('armoryGrid').querySelectorAll('.item').forEach(b => {
@@ -151,8 +160,16 @@ const UI = (() => {
   function renderPreviewInfo() {
     const it = Save.itemOf(armoryTab, armorySel);
     if (!it) return;
-    const own = Save.owns(armoryTab, it.id), eq = equipped(armoryTab) === it.id;
+    const own = Save.owns(armoryTab, it.id), eq = isEquipped(armoryTab, it.id);
     let stats = '';
+    if (armoryTab === 'armor') {
+      stats = `<div class="stats">
+        <span>SLOT</span><em>${SLOT_NAME[it.slot]}</em>
+        <span>DURABILITY</span><i style="--v:${it.hits / 4 * 100}%"></i>
+        <span>HITS / ROOM</span><em>${it.hits}</em>
+        ${it.ability ? `<span>ABILITY</span><em class="ab">${ARMOR_ABILITY[it.ability]}</em>` : ''}
+      </div>`;
+    }
     if (armoryTab === 'weapon') {
       const dmg = (it.pellets || 1) * (it.dmg || 1) * (it.blast ? 3 : 1);
       stats = `<div class="stats">
@@ -163,11 +180,14 @@ const UI = (() => {
       </div>`;
     }
     let btn;
-    if (eq) btn = '<button class="btn" disabled><b>EQUIPPED</b></button>';
+    if (eq && armoryTab === 'armor') btn = '<button class="btn" id="armOff"><b>TAKE OFF</b></button>';
+    else if (eq) btn = '<button class="btn" disabled><b>EQUIPPED</b></button>';
     else if (own) btn = '<button class="btn primary" id="armBtn"><b>EQUIP</b></button>';
-    else if (it.stars) btn = `<button class="btn ${Save.canUnlockFree(armoryTab, it.id) ? 'primary' : ''}" id="armBtn" ${Save.canUnlockFree(armoryTab, it.id) ? '' : 'disabled'}><b>${Save.canUnlockFree(armoryTab, it.id) ? 'UNLOCK' : 'NEEDS ' + it.stars + ' STARS'}</b></button>`;
+    else if (it.stars) btn = `<button class="btn ${Save.canUnlockFree(armoryTab, it.id) ? 'primary' : ''}" id="armBtn" ${Save.canUnlockFree(armoryTab, it.id) ? '' : 'disabled'}><b>${Save.canUnlockFree(armoryTab, it.id) ? 'UNLOCK FREE' : 'REACH ' + it.stars + ' STARS'}</b></button>`;
     else btn = `<button class="btn primary" id="armBtn" ${S().coins < it.price ? 'disabled' : ''}><b>BUY · ${fmt(it.price)}</b></button>`;
-    $('previewInfo').innerHTML = `<b>${it.name}</b>${it.desc ? `<p>${it.desc}</p>` : ''}${stats}${btn}`;
+    const note = it.stars ? `<p class="note">Unlocks free once you've earned ${it.stars} stars. Your stars are never spent.</p>` : '';
+    $('previewInfo').innerHTML = `<b>${it.name}</b>${it.desc ? `<p>${it.desc}</p>` : ''}${stats}${note}${btn}`;
+    if ($('armOff')) $('armOff').onclick = () => { click(); Save.unequipArmor(it.slot); renderArmory(); };
     const ab = $('armBtn');
     if (ab) ab.onclick = () => {
       if (own) { Save.equip(armoryTab, it.id); click(); }
@@ -183,8 +203,10 @@ const UI = (() => {
     View.V.x = 0; View.V.y = -30; View.rel = false;
     ctx.save(); ctx.translate(cx, cy); ctx.scale(scale, scale);
     const skin = SKIN[o.skin] || SKINS[0];
-    const b = o.body || new Body({ x: 0, y: 0, color: skin.body, dark: skin.dark, shine: skin.shine, rainbow: skin.rainbow, hat: o.hat });
-    b.color = skin.body; b.dark = skin.dark; b.shine = skin.shine; b.rainbow = skin.rainbow; b.hat = o.hat;
+    const b = o.body || new Body({ x: 0, y: 0, color: skin.body, dark: skin.dark, shine: skin.shine, rainbow: skin.rainbow, prism: skin.prism, hat: o.hat });
+    b.color = skin.body; b.dark = skin.dark; b.shine = skin.shine; b.rainbow = skin.rainbow; b.prism = skin.prism; b.hat = o.hat;
+    const arm = o.armor || {};
+    b.armor = { head: ARMOR_BY[arm.head], body: ARMOR_BY[arm.body], legs: ARMOR_BY[arm.legs] }; b.armorBroken = {};
     b.gunId = o.weapon; b.dual = !!(WEAPON[o.weapon] || {}).dual;
     b.pose({ x: 0, y: 0, facing: 1, aim: o.aim != null ? o.aim : -0.05 + Math.sin(t * 1.3) * 0.06, vx: 0, vy: 0, grounded: true, gun: !!o.weapon, twoHand: TWO_HAND.has(o.weapon), dual: b.dual, kick: o.kick || 0, kick2: o.kick2 || 0 }, 1 / 60);
     ctx.fillStyle = 'rgba(40,40,60,0.12)';
@@ -198,7 +220,12 @@ const UI = (() => {
   function drawThumb(cv, tab, id) {
     const ctx = cv.getContext('2d');
     ctx.clearRect(0, 0, cv.width, cv.height);
-    if (tab === 'weapon') {
+    if (tab === 'armor') {
+      const a = ARMOR_BY[id], armor = { [a.slot]: id };
+      if (a.slot === 'head') drawFigure(ctx, cv.width / 2 - 2, 76 + 91 * 3.2, 3.2, { skin: S().skin, hat: 'none', weapon: null, aim: 0, armor });
+      else if (a.slot === 'body') drawFigure(ctx, cv.width / 2 - 4, 70 + 62 * 2.2, 2.2, { skin: S().skin, hat: 'none', weapon: null, aim: 0, armor });
+      else drawFigure(ctx, cv.width / 2 - 4, 112, 2.2, { skin: S().skin, hat: 'none', weapon: null, aim: 0, armor });
+    } else if (tab === 'weapon') {
       const savedV = { x: View.V.x, y: View.V.y };
       View.V.x = 0; View.V.y = 0; View.rel = false;
       ctx.save(); ctx.translate(cv.width / 2 - 40, cv.height / 2 + 6); ctx.scale(3, 3);
@@ -206,7 +233,7 @@ const UI = (() => {
       ctx.restore();
       View.V.x = savedV.x; View.V.y = savedV.y;
     } else if (tab === 'skin') {
-      drawFigure(ctx, cv.width / 2, cv.height - 10, 1.15, { skin: id, hat: S().hat, weapon: null, aim: 0 });
+      drawFigure(ctx, cv.width / 2, cv.height - 10, 1.15, { skin: id, hat: S().hat, weapon: null, aim: 0, armor: S().armor });
     } else {
       drawFigure(ctx, cv.width / 2 - 2, 76 + 91 * 3.2, 3.2, { skin: S().skin, hat: id, weapon: null, aim: 0 });
     }
@@ -230,8 +257,10 @@ const UI = (() => {
     const cv = $('previewCanvas'), ctx = cv.getContext('2d');
     ctx.clearRect(0, 0, cv.width, cv.height);
     const sel = armorySel || equipped(armoryTab);
-    const o = { skin: S().skin, hat: S().hat, weapon: S().weapon };
-    if (armoryTab === 'weapon') o.weapon = sel; else if (armoryTab === 'skin') o.skin = sel; else o.hat = sel;
+    const o = { skin: S().skin, hat: S().hat, weapon: S().weapon, armor: Object.assign({}, S().armor) };
+    if (armoryTab === 'weapon') o.weapon = sel; else if (armoryTab === 'skin') o.skin = sel;
+    else if (armoryTab === 'armor') { const a = ARMOR_BY[sel]; if (a) o.armor[a.slot] = sel; }
+    else o.hat = sel;
     const w = WEAPON[o.weapon] || WEAPONS[0];
     if (prev.wid !== w.id) { prev.wid = w.id; prev.shots = []; prev.fx = []; prev.cycle = 0.35; prev.burst = 0; prev.charge = 0; }
     const dt = 1 / 60, scale = 2.1, cx = cv.width / 2 - 70, cy = cv.height - 70;
@@ -317,7 +346,7 @@ const UI = (() => {
   }
 
   /* -------------------------------------------------------------- hud */
-  let lastAmmoKey = '';
+  let lastAmmoKey = '', lastArmorKey = '';
   function tick(dt) {
     previewT += dt;
     if (screen === 'armory') renderPreview(previewT);
@@ -353,6 +382,12 @@ const UI = (() => {
       }
     }
     $('tbGrab').classList.toggle('hidden', !Game.nearPickup);
+    const ah = Game.armorState, key = ah.map(a => a ? a.slot + a.hp : '-').join();
+    if (key !== lastArmorKey) {
+      lastArmorKey = key;
+      $('armorHud').classList.toggle('hidden', !ah.some(Boolean));
+      $('armorHud').innerHTML = ah.filter(Boolean).map(a => `<span class="ar ${a.hp ? '' : 'gone'}"><b>${SLOT_NAME[a.slot]}</b>${Array.from({ length: a.max }, (_, i) => `<i class="${i < a.hp ? 'on' : ''}"></i>`).join('')}</span>`).join('');
+    }
   }
 
   /* ------------------------------------------------------------ death */

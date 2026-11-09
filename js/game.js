@@ -71,7 +71,8 @@ const Game = (() => {
     room = new Room(MENU_MAP, 0);
     resetRoomEntities();
     run = newRun();
-    player.x = 560; player.y = room.h - TILE; player.body = new Body({ x: player.x, y: player.y, color: player.body.color, dark: player.body.dark, shine: player.body.shine, rainbow: player.body.rainbow, hat: Save.data.hat, deadColor: deadCol() });
+    player.x = 560; player.y = room.h - TILE; player.body = new Body({ x: player.x, y: player.y, color: player.body.color, dark: player.body.dark, shine: player.body.shine, rainbow: player.body.rainbow, prism: player.body.prism, hat: Save.data.hat, deadColor: deadCol() });
+    applyArmor(player);
     menuT = 1.2; menuEnemyT = 0;
     spawnMenuEnemy();
     cam.x = 760; cam.y = room.h / 2; cam.zoom = baseZoom();
@@ -129,9 +130,10 @@ const Game = (() => {
     Fx.clear();
     const skin = SKIN[Save.data.skin] || SKINS[0];
     player = makeChar(room.spawn.x, room.spawn.y, {
-      color: skin.body, dark: skin.dark, shine: skin.shine, rainbow: skin.rainbow, hat: Save.data.hat, deadColor: deadCol(),
+      color: skin.body, dark: skin.dark, shine: skin.shine, rainbow: skin.rainbow, prism: skin.prism, hat: Save.data.hat, deadColor: deadCol(),
     });
     player.isPlayer = true;
+    applyArmor(player);
     const w = WEAPON[Save.data.weapon] || WEAPONS[0];
     player.weapon = { id: w.id, ammo: w.mag, cd: 0, reloadT: 0, kick: 0, kick2: 0, alt: 0 };
     player.pickup = roomPickup && mode !== 'menu' ? { id: roomPickup.id, ammo: roomPickup.ammo, cd: 0.2, held: true } : null;
@@ -147,6 +149,62 @@ const Game = (() => {
     clearT = -1; roomT = 0; deathT = 0;
     forcedT = 0; hitstop = 0;
   }
+  // armour is fully repaired whenever a room starts or restarts
+  function applyArmor(p) {
+    p.armorHp = {}; p.blastUsed = false; p.armorInv = 0;
+    const show = {};
+    for (const slot of ['head', 'body', 'legs']) {
+      const ar = ARMOR_BY[Save.data.armor[slot]];
+      if (ar && Save.owns('armor', ar.id)) { p.armorHp[slot] = { id: ar.id, hp: ar.hits, max: ar.hits }; show[slot] = ar; }
+    }
+    p.body.armor = show; p.body.armorBroken = {};
+  }
+  const LEG_JOINTS = new Set([J.FKNEE, J.FFOOT, J.BKNEE, J.BFOOT]);
+  // Returns true if armour took the hit. kind: 'shot' | 'melee' | 'blast'
+  function armorBlock(idx, kind, killer, vx, vy) {
+    const p = player;
+    if (!p.armorHp) return false;
+    const zone = idx === J.HEAD ? 'head' : LEG_JOINTS.has(idx) ? 'legs' : 'body';
+    if (kind === 'blast') {
+      const b = p.armorHp.body, ar = b && ARMOR_BY[b.id];
+      if (!ar || ar.ability !== 'blast' || p.blastUsed) return false;
+      p.blastUsed = true; p.armorInv = 0.4;
+      Fx.text(p.x, p.y - 120, 'BLAST PROOF', '#1d2130', 18); Sfx.armor();
+      p.vx += Math.sign(vx || 1) * 380; p.vy = Math.min(p.vy, -420); p.grounded = false;
+      emit('armor');
+      return true;
+    }
+    if (p.armorInv > 0 && (p.lastBlockZone === zone || kind === 'melee')) return true;    // one shotgun blast or one punch = one hit
+    const piece = p.armorHp[zone];
+    if (!piece || piece.hp <= 0) return false;
+    const ar = ARMOR_BY[piece.id];
+    piece.hp--; p.armorInv = kind === 'melee' ? 0.6 : 0.15; p.lastBlockZone = zone;
+    const pt = p.body.pts[idx] || p.body.center();
+    Sfx.armor(); Fx.sparks(pt.x, pt.y, Math.atan2(-vy, -vx), 10, '#ffffff', 420); Fx.chips(pt.x, pt.y, -vx, -vy, ar.col, 4);
+    p.body.flash = 0.7; p.body.shove(vx * 0.3, vy * 0.2, idx);
+    p.vx += Math.sign(vx || 1) * (kind === 'melee' ? 420 : 90);
+    if (ar.ability === 'focus') { focus = Math.min(1, focus + 0.3); Fx.text(p.x, p.y - 140, '+SLOW-MO', '#4da3ff', 16); }
+    if (ar.ability === 'deflect' && kind === 'shot') {
+      // the round goes straight back where it came from
+      const tgt = killer && killer.alive ? killer.body.center() : { x: pt.x - vx, y: pt.y - vy };
+      const a = Math.atan2(tgt.y - pt.y, tgt.x - pt.x);
+      bullets.push({ x: pt.x, y: pt.y, ox: pt.x, oy: pt.y, vx: Math.cos(a) * BULLET_SPEED, vy: Math.sin(a) * BULLET_SPEED, owner: 'p', pierce: 0, life: 2.4, t: 0, hits: [], shooter: p, kind: 'deflect', dmg: 1 });
+      Fx.ring(pt.x, pt.y, 26, '#8fd0ff', 3, 0.3); Sfx.deflect();
+      styleEvent(pt.x, pt.y, 'REFLECT', 60);
+    }
+    if (ar.ability === 'thorns' && kind === 'melee' && killer && killer.alive) {
+      if (killer.def.brute) { killer.bstate = 'stun'; killer.bt = 1.6; killer.vx = -killer.facing * 300; Fx.text(killer.x, killer.y - 140, 'STUNNED', '#1d2130', 16); }
+      else killEnemy(killer, -killer.facing * 900, -350, J.NECK, { head: false });
+    }
+    if (piece.hp <= 0) {
+      p.body.armorBroken[zone] = true;
+      Fx.chips(pt.x, pt.y, vx, vy - 200, ar.col, 14); Sfx.smash();
+      Fx.text(p.x, p.y - 124, zone.toUpperCase() + ' ARMOR BROKEN', '#e2434b', 16);
+    } else Fx.text(p.x, p.y - 124, 'BLOCKED', '#1d2130', 15);
+    emit('armor');
+    return true;
+  }
+
   function makeEnemy(type, x, y, away) {
     const def = ENEMIES[type];
     const e = makeChar(x, y, { color: def.color || '#e2434b', dark: def.dark || '#b02a33', deadColor: deadCol(), scale: def.scale, hat: def.hat });
@@ -184,7 +242,7 @@ const Game = (() => {
       x, y, vx: 0, vy: 0, w: 24 * s, h: STAND_H * s, s, grounded: true, plat: null, dropPlat: null, dropT: 0,
       facing: 1, aim: 0, alive: true, slideT: 0, slideDir: 1, crawl: false, flip: 0, flipping: false, flipDir: 1,
       coyote: 0, jumpBuf: 0, airT: 0, stepPh: 0,
-      body: new Body({ x, y, scale: s, color: o.color, dark: o.dark, shine: o.shine, rainbow: o.rainbow, hat: o.hat, deadColor: o.deadColor }),
+      body: new Body({ x, y, scale: s, color: o.color, dark: o.dark, shine: o.shine, rainbow: o.rainbow, prism: o.prism, hat: o.hat, deadColor: o.deadColor }),
     };
     return c;
   }
@@ -408,7 +466,8 @@ const Game = (() => {
     p.sprinting = sprint && Math.abs(mx) > 0.1;
     const spinning = (p.pickup || p.weapon).spin > 0.05 || ((p.pickup || p.weapon).chargeT || 0) > 0.05;
     if (spinning) p.sprinting = false;
-    const want = mx * (p.sprinting ? SPRINT : WALK) * (spinning && w.heavy ? 0.45 : spinning ? 0.7 : 1);
+    const swift = p.armorHp && p.armorHp.legs && ARMOR_BY[p.armorHp.legs.id].ability === 'swift' ? 1.07 : 1;
+    const want = swift * mx * (p.sprinting ? SPRINT : WALK) * (spinning && w.heavy ? 0.45 : spinning ? 0.7 : 1);
 
     // timers
     p.coyote = p.grounded ? 0.1 : p.coyote - dt;
@@ -597,6 +656,7 @@ const Game = (() => {
     }, dt);
     if (p.body.flash > 0) p.body.flash -= dt * 4;
     if (p.invuln > 0) p.invuln -= dt;
+    if (p.armorInv > 0) p.armorInv -= dt;
   }
 
   // Safety net for every slide state. A slide or crawl that hasn't ended by itself gets ended:
@@ -1049,7 +1109,7 @@ const Game = (() => {
           if (!h) continue;
           b.hits.push(c);
           if (b.blast) { explode(nx, ny, b.blast, b.owner === 'p'); alive = false; break; }
-          if (c === player) { killPlayer(ux * 950, uy * 950 - 180, b.shooter, h.idx); alive = false; break; }
+          if (c === player) { killPlayer(ux * 950, uy * 950 - 180, b.shooter, h.idx, 'shot'); alive = false; break; }
           hitEnemy(c, b, h, nx, ny);
           if (b.pierce > 0) b.pierce--; else { alive = false; break; }
         }
@@ -1209,9 +1269,10 @@ const Game = (() => {
     Fx.text(x, y - 30, label, '#1d2130', 18, '+' + pts);
   }
 
-  function killPlayer(vx, vy, killer, idx = J.NECK) {
+  function killPlayer(vx, vy, killer, idx = J.NECK, kind = 'melee') {
     const p = player;
     if (!p.alive || state !== 'play') return;
+    if (armorBlock(idx, kind, killer, vx, vy)) return;
     p.alive = false;
     p.body.die(vx, vy, idx, room);
     p.body.gunId = null;
@@ -1257,7 +1318,7 @@ const Game = (() => {
       const c = e.body.center(), d = dist(c.x, c.y, x, y);
       if (d < R) { const a = Math.atan2(c.y - y, c.x - x); killEnemy(e, Math.cos(a) * 1100, Math.sin(a) * 1100 - 500, J.PELVIS, { boom: true }); }
     }
-    if (player.alive) { const d = dist(player.x, player.y - 46, x, y); if (d < R - 25) { const a = Math.atan2(player.y - 46 - y, player.x - x); killPlayer(Math.cos(a) * 1000, Math.sin(a) * 1000 - 500, null, J.PELVIS); } }
+    if (player.alive) { const d = dist(player.x, player.y - 46, x, y); if (d < R - 25) { const a = Math.atan2(player.y - 46 - y, player.x - x); killPlayer(Math.cos(a) * 1000, Math.sin(a) * 1000 - 500, null, J.PELVIS, 'blast'); } }
     for (const cb of corpses) pushRadial(cb.pts, x, y, R + 40, 1300);
     for (const pc of pieces) Rigid.blast(pc, x, y, R + 70, 1300);
     for (const c of crates) { Rigid.blast(c, x, y, R + 50, 950); if (dist(c.x, c.y, x, y) < R) smashCrate(c, c.x - x, c.y - y); }
@@ -1741,6 +1802,7 @@ const Game = (() => {
     get focus() { return focus; }, get slowOn() { return slowOn; }, get ts() { return ts; },
     get run() { return run; }, get level() { return level; }, get levelIdx() { return levelIdx; }, get roomIdx() { return roomIdx; },
     get roomCount() { return mode === 'endless' ? endless.n + 1 : level.rooms.length; },
+    get armorState() { return player && player.armorHp ? ['head', 'body', 'legs'].map(s => player.armorHp[s] ? Object.assign({ slot: s }, player.armorHp[s]) : null) : []; },
     get endless() { return endless; }, get lives() { return run ? run.lives : 0; },
     get player() { return player; }, get enemiesLeft() { return enemies.filter(e => e.alive).length; },
     get weaponInfo() {

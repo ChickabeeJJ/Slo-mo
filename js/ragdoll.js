@@ -36,7 +36,8 @@ class Body {
   constructor(o) {
     this.s = o.scale || 1;
     this.color = o.color; this.dark = o.dark || shade(o.color, -0.22);
-    this.shine = !!o.shine; this.rainbow = !!o.rainbow;
+    this.shine = !!o.shine; this.rainbow = !!o.rainbow; this.prism = !!o.prism;
+    this.armor = null; this.armorBroken = {};
     this.hat = o.hat || 'none';
     this.deadColor = o.deadColor || '#eeeef1';
     this.facing = o.facing || 1;
@@ -312,18 +313,96 @@ class Body {
     const base = this.tint();
     const dark = mixHex(this.rainbow ? shade(base, -0.2) : this.dark, shade(this.deadColor, -0.12), this.whiteT);
     const f = this.facing;
+    const crystal = this.prism && this.whiteT < 0.5;
+    const A = this.armor && !this.dead ? this.armor : null, broken = this.armorBroken || {};
     for (const si of DRAW_ORDER) {
       const st = STICKS[si];
       if (st[5] === 'head' && this.headless) continue;
       const a = this.pts[st[0]], b = this.pts[st[1]];
       const back = st[5] === 'barm' || st[5] === 'bleg';
-      const col = back ? dark : base;
+      let col = back ? dark : base;
+      if (crystal) {
+        // diamond: an iridescent tint that drifts across the body, see-through, with a travelling sheen
+        const hue = (this.t * 35 + (a.x + a.y) * 1.3) % 360;
+        col = mixHex(hsl(hue, 70, back ? 78 : 86), '#ffffff', 0.25 + 0.3 * Math.max(0, Math.sin(this.t * 2.4 - a.x * 0.06)));
+        ctx.globalAlpha = back ? 0.62 : 0.78;
+      }
       if (st[5] === 'head') drawHead(ctx, a, b, st[3] * this.s, col, this, f);
       else limb(ctx, a.x, a.y, b.x, b.y, st[3] * this.s, st[4], col, st[5] === 'torso' ? 1.4 : 1);
+      if (crystal) ctx.globalAlpha = 1;
+      if (A) {
+        if (st[5] === 'torso' && A.body && !broken.body) drawVest(ctx, a, b, st[3] * this.s, A.body);
+        if ((si === 5 || si === 7) && A.legs && !broken.legs) drawGuard(ctx, a, b, st[3] * this.s, A.legs, back);
+      }
       // the gun sits in the hands, between the arms
       if (si === 4 && this.gunId && !this.dead && this.dual) drawGun(ctx, this.pts[J.BHAND], this.gunAng2 != null && this.dual ? this.gunAng2 : this.gunAng, this.gunId, this.dual);
       if (si === 9 && this.gunId && !this.dead) drawGun(ctx, this.pts[J.FHAND], this.gunAng, this.gunId, false);
     }
+    if (crystal) {
+      // glints that twinkle on and off across the crystal
+      for (let i = 0; i < 4; i++) {
+        const k = (this.t * 0.9 + i * 0.27) % 1, p = this.pts[[J.HEAD, J.NECK, J.PELVIS, J.FKNEE][i]];
+        const a = Math.sin(k * Math.PI);
+        if (a < 0.2) continue;
+        const x = p.x + Math.sin(i * 7.1) * 5, y = p.y + Math.cos(i * 3.3) * 5, r = 2 + a * 4;
+        Glow.draw(ctx, '#ffffff', x, y, r * 2.4, a * 0.7);
+        ctx.fillStyle = `rgba(255,255,255,${a})`;
+        ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.25, y); ctx.lineTo(x, y + r); ctx.lineTo(x - r * 0.25, y); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(x - r, y); ctx.lineTo(x, y + r * 0.25); ctx.lineTo(x + r, y); ctx.lineTo(x, y - r * 0.25); ctx.closePath(); ctx.fill();
+      }
+    }
+  }
+}
+
+/* -------------------------------------------------------------- armour */
+// partial limb: from t0 to t1 along a->b
+function seg(a, b, t0, t1) { return [a.x + (b.x - a.x) * t0, a.y + (b.y - a.y) * t0, a.x + (b.x - a.x) * t1, a.y + (b.y - a.y) * t1]; }
+function drawVest(ctx, neck, pel, th, ar) {
+  const [x0, y0, x1, y1] = seg(neck, pel, 0.08, 0.86);
+  limb(ctx, x0, y0, x1, y1, th + 5, 0.08, ar.col, 0.8);
+  const [c0, c1, c2, c3] = seg(neck, pel, 0.08, 0.22);
+  limb(ctx, c0, c1, c2, c3, th + 6, 0.085, ar.trim, 0.4);                  // collar
+  const [p0, p1, p2, p3] = seg(neck, pel, 0.5, 0.7);
+  limb(ctx, p0, p1, p2, p3, th + 6.5, 0.086, shade(ar.col, -0.18), 0.3);     // pouches
+  if (ar.ability === 'deflect') { const m = seg(neck, pel, 0.32, 0.32); Glow.draw(ctx, ar.trim, m[0], m[1], 10, 0.5); }
+}
+function drawGuard(ctx, knee, foot, th, ar, back) {
+  const [x0, y0, x1, y1] = seg(knee, foot, 0.12, 0.82);
+  limb(ctx, x0, y0, x1, y1, th + 3.5, 0.06, back ? shade(ar.col, -0.15) : ar.col, 0.6);
+  limb(ctx, knee.x, knee.y - 1, knee.x, knee.y + 1, th + 4.5, 0.065, back ? shade(ar.trim, -0.15) : ar.trim, 2.2);   // knee cap
+}
+// helmets replace the hat while worn
+function drawHelmet(ctx, ar, cx, cy, ux, uy, size, f) {
+  const rx = -uy, ry = ux;
+  const P = (a, b) => [cx + rx * a * f + ux * b, cy + ry * a * f + uy * b];
+  const h = size / 2;
+  const poly = (pts, c, z = 0.085) => prism(ctx, pts.map(([a, b]) => P(a, b)), ZP - z, ZP + z, c, shade(c, 0.2), shade(c, -0.16), shade(c, -0.28));
+  const c = ar.col, t = ar.trim;
+  switch (ar.id) {
+    case 'hood':
+      poly([[-h - 2, -h * 0.6], [h * 0.2, -h * 0.6], [h * 0.6, h * 0.6], [h * 0.4, h + 3], [-h * 0.6, h + 4], [-h - 2.5, h + 1]], c);
+      break;
+    case 'helmet':
+      poly([[-h - 2, h * 0.15], [h + 2, h * 0.15], [h + 1.5, h + 3], [h * 0.4, h + 6], [-h * 0.6, h + 6], [-h - 2, h + 3]], c);
+      poly([[h - 1, h * 0.3], [h + 6, h * 0.18], [h + 6, h * 0.05], [h - 1, h * 0.12]], t, 0.08);
+      break;
+    case 'tachelm':
+      poly([[-h - 2, h * 0.2], [h + 2, h * 0.2], [h + 1.5, h + 3], [h * 0.4, h + 6], [-h * 0.6, h + 6], [-h - 2, h + 3]], c);
+      poly([[h * 0.1, h + 6], [h * 0.7, h + 6], [h * 0.9, h + 2], [h * 0.1, h + 2]], shade(c, -0.25), 0.03);
+      poly([[h * 0.5, h + 1], [h + 5, h + 1], [h + 5, h - 3], [h * 0.5, h - 3]], '#20232c', 0.04);
+      Glow.draw(ctx, t, P(h + 5, h - 1)[0], P(h + 5, h - 1)[1], 7, 0.8);
+      break;
+    case 'mirrorvisor':
+      poly([[-h - 1.5, h * 0.55], [h + 1.5, h * 0.55], [h + 1.5, h * 0.25], [-h - 1.5, h * 0.25]], shade(c, -0.4), 0.088);
+      poly([[0, h * 0.75], [h + 3, h * 0.62], [h + 3, -h * 0.55], [0, -h * 0.35]], c, 0.09);
+      Glow.draw(ctx, t, P(h * 0.9, 0)[0], P(h * 0.9, 0)[1], 12, 0.6);
+      break;
+    case 'titanhelm':
+      poly([[-h - 2.5, -h * 0.9], [h + 2.5, -h * 0.9], [h + 2.5, h + 3], [h * 0.4, h + 6], [-h * 0.6, h + 6], [-h - 2.5, h + 3]], c, 0.09);
+      poly([[h * 0.15, h * 0.35], [h + 2.8, h * 0.35], [h + 2.8, h * 0.15], [h * 0.15, h * 0.15]], t, 0.092);     // eye slit
+      poly([[-h * 0.5, h + 6], [h * 0.3, h + 6], [h * 0.1, h + 12], [-h * 0.3, h + 12]], t, 0.03);              // crest
+      break;
+    default: break;
   }
 }
 
@@ -357,7 +436,9 @@ function drawHead(ctx, neck, head, size, col, body, f) {
     const p = P(-w * 0.5 * f, h * 0.6);
     ctx.beginPath(); ctx.arc(p[0], p[1], 2.5, 0, TAU); ctx.fill();
   }
-  if (body.hat && body.hat !== 'none' && !body.dead) drawHat(ctx, body.hat, cx, cy, ux, uy, size, f);
+  const helm = body.armor && !body.dead && body.armor.head && !(body.armorBroken || {}).head ? body.armor.head : null;
+  if (helm) drawHelmet(ctx, helm, cx, cy, ux, uy, size, f);
+  else if (body.hat && body.hat !== 'none' && !body.dead) drawHat(ctx, body.hat, cx, cy, ux, uy, size, f);
 }
 
 function drawHat(ctx, hat, cx, cy, ux, uy, size, f) {

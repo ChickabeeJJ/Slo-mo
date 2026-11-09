@@ -55,7 +55,7 @@ const SKINS = [
   { id: 'coral', name: 'Coral', price: 900, body: '#ff9a76', dark: '#de7553' },
   { id: 'chrome', name: 'Chrome', price: 1500, body: '#d7dde6', dark: '#9aa4b4', shine: true },
   { id: 'gold', name: 'Gold', price: 2500, body: '#ffd34d', dark: '#d9a520', shine: true },
-  { id: 'prism', name: 'Prism', price: 0, body: '#8fd0ff', dark: '#6aa0e0', rainbow: true, stars: 120 },
+  { id: 'prism', name: 'Prism', price: 0, body: '#e6f6ff', dark: '#b9d8f0', prism: true, stars: 120 },
 ];
 const SKIN = Object.fromEntries(SKINS.map(s => [s.id, s]));
 
@@ -74,6 +74,30 @@ const HATS = [
   { id: 'crown', name: 'Crown', price: 2000 },
   { id: 'halo', name: 'Halo', price: 0, stars: 60 },
 ];
+// Armour: one piece per slot. hits = how many hits it soaks per room (it's restored when a room
+// starts or restarts). Abilities: deflect (blocked rounds fly back at the shooter), focus (a block
+// refills slow motion), blast (soaks an explosion), swift (+move speed), thorns (a blocked melee
+// hit knocks the attacker flat). col/trim colour the piece on the figure.
+const ARMOR = [
+  { id: 'hood', slot: 'head', name: 'Padded Hood', price: 300, hits: 1, col: '#4a5062', trim: '#2b2f3b', desc: 'Soaks one shot to the head.' },
+  { id: 'helmet', slot: 'head', name: 'Steel Helmet', price: 750, hits: 2, col: '#6b7280', trim: '#3d434f', desc: 'Two head hits before it gives.' },
+  { id: 'tachelm', slot: 'head', name: 'Tactical Helmet', price: 1200, hits: 2, ability: 'focus', col: '#3f4a32', trim: '#58e1ff', desc: 'Two hits. Every block refills 30% slow motion.' },
+  { id: 'mirrorvisor', slot: 'head', name: 'Mirror Visor', price: 1700, hits: 1, ability: 'deflect', col: '#c9d6e4', trim: '#8fd0ff', desc: 'One hit, and the round flies straight back at the shooter.' },
+  { id: 'titanhelm', slot: 'head', name: 'Titan Helm', price: 2600, hits: 3, col: '#2a2d36', trim: '#ffc933', desc: 'Three head hits. Heavy, proud, gold-trimmed.' },
+  { id: 'kevlar', slot: 'body', name: 'Kevlar Vest', price: 400, hits: 1, col: '#3b4253', trim: '#262a36', desc: 'Soaks one shot to the body.' },
+  { id: 'carrier', slot: 'body', name: 'Plate Carrier', price: 950, hits: 2, col: '#5d6b4a', trim: '#3f4a32', desc: 'Two body hits, pouches included.' },
+  { id: 'blastvest', slot: 'body', name: 'Blast Vest', price: 1500, hits: 2, ability: 'blast', col: '#ff8a3d', trim: '#2a2c33', desc: 'Two hits, and it soaks one explosion as well.' },
+  { id: 'mirrorplate', slot: 'body', name: 'Mirror Plate', price: 2300, hits: 2, ability: 'deflect', col: '#d7dde6', trim: '#8fd0ff', desc: 'Two hits; blocked rounds ricochet back at the shooter.' },
+  { id: 'bastion', slot: 'body', name: 'Bastion Suit', price: 3400, hits: 4, ability: 'thorns', col: '#20232c', trim: '#e2434b', desc: 'Four hits. Blades and Brutes that hit it get knocked flat.' },
+  { id: 'kneepads', slot: 'legs', name: 'Knee Pads', price: 250, hits: 1, col: '#3b4253', trim: '#262a36', desc: 'Soaks one shot to the legs.' },
+  { id: 'runners', slot: 'legs', name: 'Runner Guards', price: 650, hits: 1, ability: 'swift', col: '#7ed9b8', trim: '#2f3646', desc: 'One hit, and you move 7% faster.' },
+  { id: 'greaves', slot: 'legs', name: 'Steel Greaves', price: 1050, hits: 2, col: '#6b7280', trim: '#3d434f', desc: 'Two hits to the legs.' },
+  { id: 'kinetic', slot: 'legs', name: 'Kinetic Greaves', price: 1600, hits: 2, ability: 'deflect', col: '#c9d6e4', trim: '#8fd0ff', desc: 'Two hits; blocked rounds bounce back at the shooter.' },
+  { id: 'sentinel', slot: 'legs', name: 'Sentinel Legs', price: 2300, hits: 3, col: '#2a2d36', trim: '#ffc933', desc: 'Three leg hits. Built like a doorframe.' },
+];
+const ARMOR_BY = Object.fromEntries(ARMOR.map(a => [a.id, a]));
+const ARMOR_ABILITY = { deflect: 'DEFLECT', focus: 'REFOCUS', blast: 'BLAST PROOF', swift: 'SWIFT', thorns: 'THORNS' };
+
 const HAT = Object.fromEntries(HATS.map(h => [h.id, h]));
 
 // Daily missions: three are drawn each day (UTC) from this pool.

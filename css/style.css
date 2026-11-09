@@ -391,3 +391,19 @@ body.touch .home-hint { display: none; }
   .home-hint { display: none; }
   .res-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ---------------------------------------------------------------- armour */
+.grid-head { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 10px; margin: 6px 2px 0; font-weight: 900; font-size: 15px; letter-spacing: 0.1em; }
+.grid-head:first-child { margin-top: 0; }
+.grid-head small { font-weight: 800; font-size: 10px; letter-spacing: 0.08em; color: var(--muted); }
+.item .tag { font-style: normal; }
+.stats em { font-style: normal; font-weight: 900; font-size: 12px; color: var(--text); }
+.stats em.ab { color: #8fd0ff; }
+.preview-info .note { font-size: 12px; color: var(--acc); }
+.armorhud { position: absolute; left: calc(16px + var(--safe-l)); bottom: calc(78px + var(--safe-b)); display: flex; gap: 6px; padding: 7px 10px; clip-path: var(--cut-s); background: var(--panel); }
+.armorhud .ar { display: flex; align-items: center; gap: 3px; }
+.armorhud .ar b { font-weight: 900; font-size: 9px; letter-spacing: 0.1em; color: var(--muted); margin-right: 3px; }
+.armorhud .ar i { width: 10px; height: 12px; border-radius: 2px; background: rgba(255, 255, 255, 0.14); }
+.armorhud .ar i.on { background: #8fd0ff; }
+.armorhud .ar.gone b { color: #ff8a94; text-decoration: line-through; }
+body.touch .armorhud { bottom: auto; top: calc(66px + var(--safe-t)); transform: scale(0.9); transform-origin: left top; }

@@ -13,6 +13,7 @@ const Save = (() => {
     weapons: ['pistol'], weapon: 'pistol',
     skins: ['sky'], skin: 'sky',
     hats: ['none'], hat: 'none',
+    armors: [], armor: { head: null, body: null, legs: null },
     settings: { sfx: true, music: true, shake: true, aimAssist: true },
     endlessBest: 0, endlessRooms: 0,
     stats: { kills: 0, headshots: 0, deaths: 0, levels: 0, slowKills: 0, deflects: 0 },
@@ -33,7 +34,8 @@ const Save = (() => {
         data.stats = Object.assign(fresh().stats, d.stats || {});
         data.daily = Object.assign(fresh().daily, d.daily || {});
         data.streak = Object.assign(fresh().streak, d.streak || {});
-        for (const k of ['weapons', 'skins', 'hats']) if (!Array.isArray(data[k])) data[k] = fresh()[k];
+        for (const k of ['weapons', 'skins', 'hats', 'armors']) if (!Array.isArray(data[k])) data[k] = fresh()[k];
+        data.armor = Object.assign(fresh().armor, d.armor || {});
       }
     } catch (e) { data = fresh(); }
     rollDaily();
@@ -66,11 +68,9 @@ const Save = (() => {
   }
 
   /* -------------------------------------------------------------- armory */
-  function owns(kind, id) {
-    const list = kind === 'weapon' ? data.weapons : kind === 'skin' ? data.skins : data.hats;
-    return list.includes(id);
-  }
-  function itemOf(kind, id) { return (kind === 'weapon' ? WEAPON : kind === 'skin' ? SKIN : HAT)[id]; }
+  const listOf = kind => (kind === 'weapon' ? data.weapons : kind === 'skin' ? data.skins : kind === 'armor' ? data.armors : data.hats);
+  function owns(kind, id) { return listOf(kind).includes(id); }
+  function itemOf(kind, id) { return (kind === 'weapon' ? WEAPON : kind === 'skin' ? SKIN : kind === 'armor' ? ARMOR_BY : HAT)[id]; }
   // star-locked cosmetics unlock for free once you have enough stars
   function canUnlockFree(kind, id) { const it = itemOf(kind, id); return it && it.stars && totalStars() >= it.stars; }
   function buy(kind, id) {
@@ -79,15 +79,18 @@ const Save = (() => {
     if (it.stars) { if (!canUnlockFree(kind, id)) return false; }
     else if (data.coins < it.price) return false;
     else data.coins -= it.price;
-    (kind === 'weapon' ? data.weapons : kind === 'skin' ? data.skins : data.hats).push(id);
+    // star-locked items (Prism, Halo) never spend stars: reaching the total is enough
+    listOf(kind).push(id);
     equip(kind, id);
     return true;
   }
   function equip(kind, id) {
     if (!owns(kind, id)) return false;
-    if (kind === 'weapon') data.weapon = id; else if (kind === 'skin') data.skin = id; else data.hat = id;
+    if (kind === 'weapon') data.weapon = id; else if (kind === 'skin') data.skin = id;
+    else if (kind === 'armor') data.armor[ARMOR_BY[id].slot] = id; else data.hat = id;
     save(); return true;
   }
+  function unequipArmor(slot) { data.armor[slot] = null; save(); }
 
   /* ------------------------------------------------------------- missions */
   function rollDaily() {
@@ -148,7 +151,7 @@ const Save = (() => {
 
   return {
     load, save, get data() { return data; }, totalStars, levelUnlocked, nextLevel, endlessUnlocked, addCoins, recordLevel,
-    owns, buy, equip, canUnlockFree, itemOf, rollDaily, track, claimMission, claimBonus, allClaimed, missionsReady,
+    owns, buy, equip, unequipArmor, canUnlockFree, itemOf, rollDaily, track, claimMission, claimBonus, allClaimed, missionsReady,
     streakState, claimStreak, STREAK,
   };
 })();

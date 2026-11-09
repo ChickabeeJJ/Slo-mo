@@ -62,7 +62,18 @@ Lowercase map chars face the player's side. UPPERCASE ones face away until they 
   - **After Hours:** dark rooms lit by lamp cones, neon signs, blinking server racks, more vents to slide through, more enemies.
 - **Difficulty:** climbs steadily across all 75 levels and through every Endless run. Enemies react sooner, telegraph for less time, turn faster, fire more often, aim tighter and shoot faster rounds, and rooms hold more of them (up to 9). Every enemy still shows its red sight line before firing.
 - **Endless:** unlocks after level 3. You get three lives: losing one restarts the room you're in. It generates rooms forever, gets harder every room, rotates themes every 4 rooms and adds a Juggernaut every 6th room. It tracks your best score. When your last life is gone, a rewarded ad can buy one more (once per run).
-- **Armory:** 13 weapons, 9 colours and 13 hats (Headband, Beanie, Cap, Party Hat, Shades, Headphones, Visor, Cowboy, Top Hat, Horns, Crown, Halo), bought with coins. Prism (120 stars) and Halo (60 stars) unlock with stars.
+- **Armory:** 13 weapons, 9 colours and 13 hats (Headband, Beanie, Cap, Party Hat, Shades, Headphones, Visor, Cowboy, Top Hat, Horns, Crown, Halo), bought with coins. Prism (120 stars) and Halo (60 stars) unlock for free once you've earned that many stars; stars are never spent. Prism is a translucent, iridescent crystal finish with twinkling glints.
+- **Armour:** an Armor tab in the shop with 5 pieces for each slot (head, body, legs). Each piece absorbs a set number of hits per room and is fully repaired whenever a room starts or restarts. A hit lands on the slot it struck. A shotgun blast or one punch only costs one hit, and a piece that runs out breaks off. Helmets replace your hat while worn. A small HUD shows the hits left.
+
+| Head | Body | Legs |
+| --- | --- | --- |
+| Padded Hood (1) | Kevlar Vest (1) | Knee Pads (1) |
+| Steel Helmet (2) | Plate Carrier (2) | Runner Guards (1, +7% speed) |
+| Tactical Helmet (2, each block refills 30% slow-mo) | Blast Vest (2, also soaks one explosion) | Steel Greaves (2) |
+| Mirror Visor (1, deflects) | Mirror Plate (2, deflects) | Kinetic Greaves (2, deflects) |
+| Titan Helm (3) | Bastion Suit (4, thorns: Blades that hit it die, Brutes are stunned) | Sentinel Legs (3) |
+
+Deflect sends the blocked round straight back at whoever fired it.
 - **Daily missions:** three a day from a pool of 12, with a 250-coin bonus for finishing all three.
 - **Daily login reward:** a 7-day streak that pays 50 → 400 coins and resets if you miss a day.
 - **Coins:** from clears (stars, style and a first-clear bonus), Endless runs and missions.
