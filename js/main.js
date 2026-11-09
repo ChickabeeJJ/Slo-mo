@@ -68,7 +68,7 @@
   window.addEventListener('blur', () => { for (const k of ['left', 'right', 'sprint', 'shoot']) Game.setKey(k, false); });
 
   window.addEventListener('resize', () => {
-    Game.resize(); UI.checkRotate();
+    Game.resize(); UI.checkRotate(); UI.applyUiScale();
     const panel = document.querySelector('.home-panel');
     if (panel && UI.screen === 'home') Game.setMenuInset(panel.getBoundingClientRect().right + Math.min(320, window.innerWidth * 0.2));
   });

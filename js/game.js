@@ -23,7 +23,7 @@ const Game = (() => {
   let ts = 1, slowOn = false, focus = 1, forcedT = 0, forcedScale = 1, hitstop = 0, closeCd = 0, heartT = 0, ghostT = 0;
   let clock = 0, roomT = 0, runTime = 0, deathT = 0, fade = null, doorOpen = false, clearT = -1, flash = 0, flashCol = '#ffffff';
   let run = null;               // per-level / per-endless-run stats
-  let endless = null;           // { seed, n, revived }
+  let endless = null;           // { seed, n }
   const input = { left: false, right: false, sprint: false, shoot: false, down: false, mouse: { x: 0, y: 0, on: false }, axis: 0, aimStick: null, touch: false };
   const pressed = new Set();
   let lastKillT = -9, multiCount = 0, menuInset = 0;
@@ -100,7 +100,7 @@ const Game = (() => {
   }
   function startEndless() {
     mode = 'endless';
-    endless = { seed: (Date.now() % 100000) | 0, n: 0, revived: false };
+    endless = { seed: (Date.now() % 100000) | 0, n: 0 };
     run = newRun();
     level = { name: 'Endless', theme: 0, rooms: [] };
     focus = 1; slowOn = false;
@@ -1355,7 +1355,7 @@ const Game = (() => {
     cam.focus = { x: p.x, y: p.y - 50 }; cam.focusT = 1.2;
     setTimeout(() => { if (!p.body.broken && state === 'dead' && player === p) { pieces.push(...p.body.breakApart()); Sfx.crumble(); } }, 900);
     if (mode === 'endless') run.lives = Math.max(0, run.lives - 1);
-    emit('death', { mode, lives: run.lives, canRevive: mode === 'endless' && run.lives === 0 && !endless.revived });
+    emit('death', { mode, lives: run.lives });
   }
 
   // a shot barrel hisses and glows for a moment, then goes up
@@ -1490,12 +1490,6 @@ const Game = (() => {
         emit('respawn');
       },
     };
-  }
-  // endless: an ad buys one more life and a fresh go at the same room
-  function revive() {
-    endless.revived = true;
-    run.lives = 1;
-    restartRoom();
   }
 
   function completeLevel() {
@@ -1882,7 +1876,7 @@ const Game = (() => {
   /* ------------------------------------------------------------- api */
   return {
     init, resize, update, render, on, setKey, press, setMouse, setAxis, setAimStick, setTouchTarget,
-    startMenu, startLevel, startEndless, restartRoom, revive, endEndless, toggleSlow,
+    startMenu, startLevel, startEndless, restartRoom, endEndless, toggleSlow,
     get state() { return state; }, get mode() { return mode; }, get paused() { return paused; },
     set paused(v) { paused = v; },
     get focus() { return focus; }, get slowOn() { return slowOn; }, get ts() { return ts; },

@@ -23,13 +23,11 @@ Fight through 75 levels across five chapters (a white training lab, offices, a w
 
 ## SDK features used
 
-- `init`, `loadingStart` / `loadingStop`, `gameplayStart` / `gameplayStop` (paused in menus, pause and ads)
-- `happytime` on 3-star clears, boss levels and new Endless bests
+- `init`, `loadingStart` / `loadingStop`, `gameplayStart` / `gameplayStop` (paused in menus and pause)
+- `happytime` only when a boss level is beaten
 - `reportGameCompletedPercentage` from the share of levels cleared
-- Midgame ads: every 2nd level clear and odd Endless runs, always before the results screen, never from a button
-- Rewarded ads: double coins on results, revive once in Endless (opt-in, with a clear message when ads are blocked)
-- Responsive banner on the desktop home screen only
-- Ad-block detection, game settings (`muteAudio`) listener
+- No ads of any kind (Basic Launch): no midgames, rewarded ads or banners
+- Game settings (`muteAudio`) listener
 - Data module for cloud saves (localStorage when standalone)
 - Leaderboard: best Endless score, once `LEADERBOARD_KEY` is set
 

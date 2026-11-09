@@ -9,7 +9,7 @@
 
 const Sfx = (() => {
   let ac = null, master = null, slowFilter = null, sfxBus = null, musicBus = null, noiseBuf = null;
-  let sfxOn = true, musicOn = true, musicPaused = true, adMuted = false, platMuted = false;
+  let sfxOn = true, musicOn = true, musicPaused = true, platMuted = false;
   let pitch = 1, timeScale = 1, musicTimer = null, mstep = 0, nextAt = 0, intensity = 0, musicTarget = 0;
   const TRACK_URL = 'assets/audio/sector-breach.mp3', TRACK_VOL = 0.3;
   let track = null, trackOk = false;
@@ -51,7 +51,7 @@ const Sfx = (() => {
   }
   function playTrack() {
     if (!track || !trackOk) return;
-    const want = musicOn && !musicPaused && !adMuted && !platMuted && ac && ac.state === 'running';
+    const want = musicOn && !musicPaused && !platMuted && ac && ac.state === 'running';
     if (want && track.paused) { const p = track.play(); if (p && p.catch) p.catch(() => {}); }
     else if (!want && !track.paused) track.pause();
   }
@@ -246,8 +246,8 @@ const Sfx = (() => {
   function applyGains() {
     if (!ac) return;
     const t = ac.currentTime;
-    const music = musicOn && !musicPaused && !adMuted && !platMuted;
-    sfxBus.gain.setTargetAtTime(sfxOn && !adMuted && !platMuted ? 0.6 : 0, t, 0.05);
+    const music = musicOn && !musicPaused && !platMuted;
+    sfxBus.gain.setTargetAtTime(sfxOn && !platMuted ? 0.6 : 0, t, 0.05);
     musicBus.gain.setTargetAtTime(music ? (trackOk ? 1 : 0.32) : 0, t, 0.3);
     playTrack();
   }
@@ -262,7 +262,6 @@ const Sfx = (() => {
   function setSfx(on) { sfxOn = on; applyGains(); }
   function setMusic(on) { musicOn = on; applyGains(); }
   function setMusicPaused(p) { musicPaused = !!p; applyGains(); }
-  function setAdMuted(m) { adMuted = m; applyGains(); }
   function setPlatformMute(m) { platMuted = m; applyGains(); }
   function suspend(s) {
     if (!ac) return;
@@ -273,7 +272,7 @@ const Sfx = (() => {
   return {
     ensure, shot, enemyShot, spin, charged, split, fuse, alarm, smash, growl, beep, appear, dry, reload, shell, whiz, ricochet, wallHit, deflect, laser, hit, armor, crumble, thud, hurtPlayer, swing,
     glass, boom, crate, step, jump, land, slide, flip, slowIn, slowOut, heartbeat, door, clear, click, coin, star, combo, win, lose,
-    unlock, denied, setTime, setIntensity, setSfx, setMusic, setMusicPaused, setAdMuted, setPlatformMute, suspend,
+    unlock, denied, setTime, setIntensity, setSfx, setMusic, setMusicPaused, setPlatformMute, suspend,
     get track() { return track ? { ok: trackOk, paused: track.paused, time: +track.currentTime.toFixed(2), rate: track.playbackRate } : null; },
   };
 })();

@@ -9,7 +9,6 @@ const UI = (() => {
   let screen = 'home';
   let modalOpen = false, modalKind = null;
   let chapter = 0, armoryTab = 'weapon', armorySel = null;
-  let levelsThisSession = 0, endlessRuns = 0, lastAdRevive = -1e9;
   let previewBody = null, previewT = 0;
   const S = () => Save.data;
 
@@ -48,6 +47,7 @@ const UI = (() => {
 
     setupTouch();
     applySettings();
+    applyUiScale();
     show('home');
     // like Elements: a brand-new player skips the menu and lands straight in level 1 (the
     // Orientation tutorial). The menu is built underneath, so quitting goes back to it.
@@ -58,6 +58,12 @@ const UI = (() => {
 
   function click() { Sfx.click(); }
 
+  // menus and HUD scale up on large screens (1280x760 is the design size), like Elements
+  function applyUiScale() {
+    const k = clamp(Math.min(innerWidth / 1280, innerHeight / 760), 1, 1.75);
+    document.documentElement.style.setProperty('--ui', k.toFixed(3));
+  }
+
   function show(id) {
     screen = id;
     for (const s of ['home', 'levels', 'armory']) $(s).classList.toggle('hidden', s !== id);
@@ -66,11 +72,6 @@ const UI = (() => {
     if (id === 'home') renderHome();
     if (id === 'levels') renderLevels();
     if (id === 'armory') renderArmory();
-    // the desktop banner lives on the home screen only, never in play
-    const banner = $('cgBanner');
-    const wantBanner = id === 'home' && Platform.adsEnabled && Platform.device() === 'desktop' && window.innerWidth >= 1100 && window.innerHeight >= 640;
-    banner.classList.toggle('hidden', !wantBanner);
-    if (wantBanner) setTimeout(() => Platform.showBanner('cgBanner'), 50);
     if (id !== null) { Sfx.setMusicPaused(id !== 'home' ? false : false); }
   }
 
@@ -426,7 +427,7 @@ const UI = (() => {
       box.onclick = () => Game.restartRoom();
       return;
     }
-    // endless: three lives. A lost life retries the same room; with none left, revive (ad) or finish.
+    // endless: three lives. A lost life retries the same room; with none left the run is over.
     const lives = d.lives || 0;
     $('deathLives').innerHTML = [0, 1, 2].map(i => `<span class="ic ${i < lives ? 'on' : ''}" data-icon="heart"></span>`).join('');
     Icons.hydrate($('deathLives'));
@@ -441,17 +442,8 @@ const UI = (() => {
     box.onclick = null;
     $('deathTitle').textContent = 'RUN OVER';
     $('deathSub').innerHTML = `<i class="stat"><b>${Game.endless.n + 1}</b>ROOM</i><i class="stat"><b>${fmt(Game.run.score)}</b>SCORE</i><i class="stat"><b>${Game.run.kills}</b>KILLS</i>`;
-    const canAd = d.canRevive && Platform.rewardedAvailable && Date.now() - lastAdRevive > 60000;
-    btns.innerHTML = (canAd ? '<button class="btn offer" id="dRevive"><span class="ic" data-icon="adv"></span><span class="bt"><b>REVIVE</b><small>+1 LIFE</small></span></button>' : '')
-      + `<button class="btn primary ${canAd ? '' : 'wide'}" id="dEnd"><span class="bt"><b>RESULTS</b><small>${fmt(Game.run.score)} PTS</small></span></button>`;
-    Icons.hydrate(btns);
+    btns.innerHTML = `<button class="btn primary wide" id="dEnd"><span class="bt"><b>RESULTS</b><small>${fmt(Game.run.score)} PTS</small></span></button>`;
     btns.classList.remove('hidden');
-    if ($('dRevive')) $('dRevive').onclick = () => {
-      Platform.rewarded(ok => {
-        if (ok) { lastAdRevive = Date.now(); box.classList.add('hidden'); Game.revive(); }
-        else toast(Platform.adBlock ? 'Ads are blocked, so revive is unavailable' : 'No ad available right now', 'adv');
-      });
-    };
     $('dEnd').onclick = () => { box.classList.add('hidden'); endEndlessRun(); };
   }
 
@@ -460,9 +452,7 @@ const UI = (() => {
     const coins = Math.floor(r.score / 100) + r.rooms * 10;
     Save.addCoins(coins);
     Platform.gameplayStop();
-    endlessRuns++;
-    const showIt = () => openEndlessResults(r, coins);
-    if (endlessRuns % 2 === 1) Platform.maybeMidgame(showIt); else showIt();
+    openEndlessResults(r, coins);
   }
   function openEndlessResults(r, coins) {
     openModal('endless', `
@@ -493,17 +483,14 @@ const UI = (() => {
     const coins = 40 + r.stars * 20 + Math.floor(r.score / 150) + (first ? 60 : 0);
     Save.addCoins(coins);
     Platform.gameplayStop();
-    levelsThisSession++;
     if (getLevel(r.level).boss) Platform.happytime();      // happytime is saved for beating a boss level
-    const showIt = () => openResults(r, coins, first, rec);
-    if (levelsThisSession % 2 === 0) Platform.maybeMidgame(showIt); else setTimeout(showIt, 650);
+    setTimeout(() => openResults(r, coins, first, rec), 650);
   }
   function openResults(r, coins, first) {
     const hasNext = r.level + 1 < LEVEL_COUNT;
     const labels = ['CLEARED', 'UNDER ' + fmtTime(r.par).replace('.0', ''), 'NO DEATHS'];
     const got = [true, r.time <= r.par, r.deaths === 0];
     const best = S().best[r.level];
-    const canDouble = Platform.rewardedAvailable;
     openModal('results', `
       <h2 class="win">${r.stars === 3 ? 'PERFECT!' : 'LEVEL CLEAR'}</h2>
       <p class="sub">LEVEL ${r.level + 1} · ${getLevel(r.level).name.toUpperCase()}</p>
@@ -515,10 +502,9 @@ const UI = (() => {
         <div><b>x${r.bestCombo || 0}</b><small>BEST COMBO</small></div>
       </div>
       <div class="res-score"><span>STYLE SCORE${best && best.score === r.score && r.score > 0 ? ' · <span class="new">BEST</span>' : ''}</span><b>${fmt(r.score)}</b></div>
-      <div class="coins-gain"><span class="ic coin" data-icon="coin"></span><span id="coinGain">+${coins}</span>${first ? '<small style="font-size:12px;color:var(--muted);margin-left:6px">FIRST CLEAR BONUS</small>' : ''}</div>
+      <div class="coins-gain"><span class="ic coin" data-icon="coin"></span><span>+${coins}</span>${first ? '<small style="font-size:12px;color:var(--muted);margin-left:6px">FIRST CLEAR BONUS</small>' : ''}</div>
       <div class="actions">
-        <button class="btn primary ${canDouble ? '' : 'wide'}" id="rNext"><b>${hasNext ? 'NEXT LEVEL' : 'HOME'}</b></button>
-        ${canDouble ? '<button class="btn offer" id="rDouble"><span class="ic" data-icon="adv"></span><b>DOUBLE COINS</b></button>' : ''}
+        <button class="btn primary wide" id="rNext"><b>${hasNext ? 'NEXT LEVEL' : 'HOME'}</b></button>
         <button class="btn" id="rRetry"><b>RETRY</b></button>
         <button class="btn" id="rLevels"><b>LEVELS</b></button>
       </div>`);
@@ -527,14 +513,6 @@ const UI = (() => {
     $('rNext').onclick = () => { click(); if (hasNext) play(r.level + 1); else quitToHome(); };
     $('rRetry').onclick = () => { click(); play(r.level); };
     $('rLevels').onclick = () => { click(); quitToHome(); chapter = Math.floor(r.level / LEVELS_PER_CHAPTER); show('levels'); };
-    if ($('rDouble')) $('rDouble').onclick = () => {
-      const b = $('rDouble');
-      b.disabled = true;
-      Platform.rewarded(ok => {
-        if (ok) { Save.addCoins(coins); $('coinGain').textContent = '+' + coins * 2; Sfx.unlock(); b.remove(); $('rNext').classList.add('wide'); }
-        else { b.disabled = false; toast(Platform.adBlock ? 'Ads are blocked, so this bonus is unavailable' : 'No ad available right now', 'adv'); }
-      });
-    };
   }
 
   /* ----------------------------------------------------------- modals */
@@ -727,6 +705,7 @@ const UI = (() => {
   }
 
   return {
+    applyUiScale,
     init, tick, show, openPause, resume, toast, checkRotate, closeModal,
     get screen() { return screen; }, modalOpen: () => modalOpen, get modalKind() { return modalKind; },
   };

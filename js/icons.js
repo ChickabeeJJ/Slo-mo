@@ -13,7 +13,6 @@ const Icons = (() => {
     coin: `<circle cx="12" cy="12" r="9" ${F}/><circle cx="12" cy="12" r="6" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="1.6"/><path d="M12 8v8" stroke="rgba(0,0,0,.3)" stroke-width="2.2" stroke-linecap="round"/>`,
     flip: `<path d="M4.6 13.2A7.5 7.5 0 1 0 7 6.6" ${S}/><path d="M7.6 2.6 7 6.8l4.2.6" ${S}/><circle cx="12" cy="12.6" r="1.9" ${F}/>`,
     pause: `<path d="M8.5 5v14M15.5 5v14" ${S} stroke-width="3.4"/>`,
-    adv: `<path fill-rule="evenodd" d="M5.5 4.5h13a3 3 0 0 1 3 3v9a3 3 0 0 1-3 3h-13a3 3 0 0 1-3-3v-9a3 3 0 0 1 3-3zM10 8.4v7.2l6-3.6z" ${F}/>`,
     play: `<path d="M7 4.5v15l12.5-7.5z" ${F}/>`,
     back: `<path d="M15 5l-7 7 7 7" ${S} stroke-width="3"/>`,
     next: `<path d="M9 5l7 7-7 7" ${S} stroke-width="3"/>`,

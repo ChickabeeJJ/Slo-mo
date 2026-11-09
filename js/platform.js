@@ -2,9 +2,8 @@
 /* =========================================================================
    Platform layer: the CrazyGames HTML5 SDK v3, fully wrapped.
    - init + environment + device info
-   - loading / gameplay events, happytime
-   - midgame ads (frequency handled by the SDK) and rewarded ads, ad-block detection
-   - responsive banners on menu screens (cleared during gameplay)
+   - loading / gameplay events, happytime (boss levels only)
+   - no ads of any kind: this build is for a Basic Launch, where ads aren't allowed
    - user accounts: current user, auth prompt, auth listener
    - data module for cloud saves (localStorage when standalone)
    - game settings (muteAudio) with a change listener
@@ -16,21 +15,10 @@ const Platform = (() => {
   let env = 'standalone';
   let ready = false;
   let inGameplay = false;
-  let adInFlight = false;
-  let adWaitOverlay = null;
-  let adBlock = false;
   let user = null;
-  const bannersShown = new Set();
   let lastProgress = null;
   const authListeners = [];
   const PREFIX = 'slomo_';
-  // Ads are for a Full Launch on CrazyGames (Basic Launch builds must not show any:
-  // set this to false for a Basic Launch upload). Off CrazyGames no ad is ever requested.
-  //  - midgame: at the end of a run, before its results: every 2nd campaign level cleared and
-  //    the 1st/3rd/5th… Endless run of a session; never from a button; the SDK decides whether one plays
-  //  - rewarded: always opt-in, for a clear bonus
-  //  - banner: desktop home screen only, never during gameplay
-  const ADS_ENABLED = true;
   // CrazyGames leaderboards are invite-only and need the encryption key from the
   // developer portal. Leave the key empty and no score is ever sent.
   // The score is AES-GCM encrypted (random 12-byte IV, sent as base64 of IV + ciphertext + tag)
@@ -66,7 +54,6 @@ const Platform = (() => {
     if (safe(() => sdk.user.isUserAccountAvailable, false)) {
       try { user = await sdk.user.getUser(); } catch (e) { user = null; }
     }
-    if (ADS_ENABLED) { try { adBlock = !!(await sdk.ad.hasAdblock()); } catch (e) { adBlock = false; } }
   }
 
   function applySettings(s) {
@@ -111,88 +98,6 @@ const Platform = (() => {
     if (value === lastProgress) return;
     lastProgress = value;
     safe(() => sdk && sdk.game && typeof sdk.game.reportGameCompletedPercentage === 'function' && sdk.game.reportGameCompletedPercentage(value));
-  }
-
-  /* --------------------------------------------------------------- ads */
-  function setAdWaitOverlay(visible) {
-    if (!visible) {
-      if (adWaitOverlay) adWaitOverlay.remove();
-      adWaitOverlay = null;
-      return;
-    }
-    if (adWaitOverlay || !document.body) return;
-    const overlay = document.createElement('div');
-    overlay.setAttribute('role', 'status');
-    overlay.setAttribute('aria-live', 'polite');
-    overlay.textContent = 'PREPARING AD…';
-    Object.assign(overlay.style, {
-      position: 'fixed', inset: '0', zIndex: '2147483647',
-      display: 'grid', placeItems: 'center',
-      background: 'rgba(6, 8, 12, 0.82)', color: '#ffffff',
-      font: '800 14px Rubik, sans-serif', letterSpacing: '0.12em',
-      pointerEvents: 'auto', touchAction: 'none', userSelect: 'none',
-    });
-    document.body.appendChild(overlay);
-    adWaitOverlay = overlay;
-  }
-
-  // cb(success:boolean). Without the SDK (other hosts, local testing) no ad runs and no reward is given.
-  function requestAd(kind, cb) {
-    if (!ADS_ENABLED || !sdk) { cb && cb(false); return; }
-    if (adInFlight) { cb && cb(false); return; }
-    adInFlight = true;
-    setAdWaitOverlay(true);
-    let done = false;
-    const wasPlaying = inGameplay;
-    const finish = ok => {
-      if (done) return; done = true; adInFlight = false;
-      setAdWaitOverlay(false);
-      Sfx.setAdMuted(false);
-      if (wasPlaying) gameplayStart();
-      cb && cb(ok);
-    };
-    gameplayStop();
-    try {
-      sdk.ad.requestAd(kind, {
-        adStarted: () => { setAdWaitOverlay(false); Sfx.setAdMuted(true); },
-        adFinished: () => finish(true),
-        adError: () => finish(false),
-      });
-    } catch (e) { finish(false); }
-  }
-  // UI decides when (every 2nd level clear, odd Endless runs); the SDK
-  // applies its own frequency limits on top.
-  function maybeMidgame(cb) {
-    if (!ADS_ENABLED || !sdk) { cb && cb(); return; }
-    requestAd('midgame', () => cb && cb());
-  }
-  function rewarded(cb) { requestAd('rewarded', cb); }
-
-  /* ----------------------------------------------------------- banners */
-  // containerId must be a visible element sized to a supported banner format.
-  // The banner is requested ONCE per container and size; leaving the screen only hides the
-  // container (see UI), so returning to the menu does not fire another request. It is only
-  // requested again if the slot has to change size.
-  const bannerSize = {};
-  function showBanner(containerId) {
-    if (!ADS_ENABLED || !sdk || inGameplay) return;
-    const el = document.getElementById(containerId);
-    if (!el || !el.offsetWidth) return;
-    const size = el.offsetWidth + 'x' + el.offsetHeight;
-    if (bannerSize[containerId] === size) return;          // already showing at this size
-    if (bannerSize[containerId]) safe(() => sdk.banner.clearBanner(containerId));
-    bannerSize[containerId] = size;
-    bannersShown.add(containerId);
-    try {
-      const p = sdk.banner.requestResponsiveBanner(containerId);
-      if (p && p.catch) p.catch(() => { delete bannerSize[containerId]; });
-    } catch (e) { delete bannerSize[containerId]; }
-  }
-  function clearBanners() {
-    if (!ADS_ENABLED || !sdk || !bannersShown.size) return;
-    safe(() => sdk.banner.clearAllBanners());
-    bannersShown.clear();
-    for (const k in bannerSize) delete bannerSize[k];
   }
 
   /* -------------------------------------------------------------- user */
@@ -249,12 +154,10 @@ const Platform = (() => {
 
   return {
     init, getItem, setItem, removeItem, loadingStart, loadingStop, gameplayStart, gameplayStop,
-    happytime, reportProgress, requestAd, maybeMidgame, rewarded, showBanner, clearBanners, login, onAuth, device, submitScore, fetchLeaderboard,
+    happytime, reportProgress, login, onAuth, device, submitScore, fetchLeaderboard,
     get leaderboardEnabled() { return leaderboardOn(); },
     get hasSdk() { return !!sdk; }, get ready() { return ready; }, get env() { return env; },
     get inGameplay() { return inGameplay; },
-    get adBlock() { return adBlock; }, get adsEnabled() { return ADS_ENABLED && !!sdk; },
-    get rewardedAvailable() { return ADS_ENABLED && !!sdk && !adBlock; },
     get user() { return user; },
     get accountsAvailable() { return !!sdk && safe(() => sdk.user.isUserAccountAvailable, false); },
   };

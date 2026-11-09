@@ -66,9 +66,6 @@ b, h1, h2, h3, h4, p { margin: 0; font-weight: inherit; }
 .btn.primary small { color: rgba(26, 20, 4, 0.72); }
 .btn.big { min-height: 64px; font-size: 28px; }
 .btn.small { min-height: 38px; padding: 6px 16px; font-size: 13px; clip-path: var(--cut-s); }
-.btn.offer { background: #2b2350; color: #e5dcff; }
-.btn.offer:hover { background: #372d66; }
-.btn.offer .ic { width: 16px; height: 16px; color: #b9a6ff; }
 .btn[disabled] { opacity: 0.45; cursor: default; filter: none; }
 .btn .ic { width: 22px; height: 22px; }
 .btn.big { flex-direction: row; gap: 14px; }
@@ -251,7 +248,6 @@ body.dark-room .hud-mid { color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); 
 .death-btns .btn { min-height: 56px; flex-direction: row; gap: 10px; }
 .death-btns .btn .bt { display: flex; flex-direction: column; align-items: flex-start; }
 .death-btns .btn.wide { grid-column: 1 / -1; }
-.death-btns .btn.offer .ic { width: 20px; height: 20px; }
 .death .lives { display: flex; gap: 6px; }
 .death .lives .ic { width: 22px; height: 22px; color: rgba(255, 255, 255, 0.14); }
 .death .lives .ic.on { color: #ff5d73; }
@@ -310,7 +306,7 @@ body.touch .tbtns { display: block; position: absolute; right: calc(20px + var(-
 
 /* ---------------------------------------------------------------- modal */
 .modal { position: fixed; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center; padding: calc(10px + var(--safe-t)) 10px calc(10px + var(--safe-b)); background: rgba(6, 8, 12, 0.55); animation: fade 0.16s ease; }
-.sheet { position: relative; width: min(480px, 100%); max-height: calc(100dvh - 20px - var(--safe-t) - var(--safe-b)); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; padding: 22px 24px; clip-path: var(--cut-l); background: #121620; box-shadow: inset 0 3px 0 var(--acc); display: flex; flex-direction: column; gap: 14px; animation: pop 0.2s ease; }
+.sheet { position: relative; width: min(480px, 100%); max-height: calc((100dvh - 20px - var(--safe-t) - var(--safe-b)) / var(--ui)); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; padding: 22px 24px; clip-path: var(--cut-l); background: #121620; box-shadow: inset 0 3px 0 var(--acc); display: flex; flex-direction: column; gap: 14px; animation: pop 0.2s ease; }
 .sheet h2 { font-weight: 900; font-size: clamp(24px, 3vw, 32px); letter-spacing: 0.04em; text-align: center; }
 .sheet h2.win { color: var(--acc); }
 .sheet h2.lose { color: #ff8a94; }
@@ -361,7 +357,6 @@ body.touch .tbtns { display: block; position: absolute; right: calc(20px + var(-
 .toast .ic { width: 18px; height: 18px; color: var(--acc); }
 .toast.out { opacity: 0; transition: opacity 0.4s; }
 
-.ad-slot { position: fixed; right: calc(16px + var(--safe-r)); bottom: calc(16px + var(--safe-b)); width: 300px; height: 250px; z-index: 11; }
 #rotate { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: var(--ink); text-align: center; }
 #rotate > div { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 20px; }
 #rotate .ic { width: 64px; height: 64px; color: var(--acc); }
@@ -388,6 +383,25 @@ body.touch .tbtns { display: block; position: absolute; right: calc(20px + var(-
   .res-star .ic { width: 38px; height: 38px; }
 }
 body.touch .home-hint { display: none; }
+/* short landscape screens (phones): the results sheets go two-column so every button fits on screen */
+@media (max-height: 520px) and (min-width: 560px) {
+  body.result-open .sheet {
+    width: min(720px, 100%); display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; row-gap: 8px; align-content: start;
+    grid-template-areas: "h2 stats" "sub stats" "stars score" "stars coins" "act act";
+  }
+  body.result-open .sheet > h2 { grid-area: h2; align-self: end; }
+  body.result-open .sheet > .sub { grid-area: sub; margin-top: 0; align-self: start; }
+  body.result-open .sheet > .res-stars { grid-area: stars; align-self: center; margin: 0; }
+  body.result-open .sheet > .res-grid { grid-area: stats; grid-template-columns: repeat(2, 1fr); }
+  body.result-open .sheet > .res-grid div { padding: 6px 4px; }
+  body.result-open .sheet > .res-grid b { font-size: 17px; }
+  body.result-open .sheet > .res-score { grid-area: score; padding: 8px 12px; }
+  body.result-open .sheet > .res-score b { font-size: 22px; }
+  body.result-open .sheet > .coins-gain { grid-area: coins; font-size: 22px; }
+  body.result-open .sheet > .actions { grid-area: act; grid-template-columns: repeat(3, 1fr); }
+  body.result-open .sheet > .actions .wide { grid-column: auto; }
+  body.result-open .sheet .res-star { width: 76px; }
+}
 @media (max-height: 460px) {
   .home-panel { width: min(360px, 50vw); }
   .btn-row .btn { font-size: 12px; }
@@ -442,3 +456,9 @@ body.touch .hud-bl { bottom: auto; top: calc(66px + var(--safe-t)); transform: s
   padding: 9px 11px; border-radius: 6px; background: #0b0d13; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(143, 208, 255, 0.35);
   font-weight: 700; font-size: 12px; line-height: 1.35; letter-spacing: 0.01em; color: var(--text); text-transform: none; white-space: normal;
 }
+
+/* ------------------------------------------------------------ UI scale */
+/* Menus, sheets and the HUD are designed at 1280x760 and scale up with the window
+   (--ui is set from JS: 1 up to 1.75), so a 1080p or 4K screen isn't left with tiny UI. */
+:root { --ui: 1; }
+.screen > *, .modal .sheet, #toasts, #hud > :not(.joy):not(.tapfire), #rotate > div { zoom: var(--ui); }

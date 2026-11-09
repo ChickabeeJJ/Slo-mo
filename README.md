@@ -82,9 +82,9 @@ Deflect sends the blocked round straight back at whoever fired it.
 
 Chapter 1 is handcrafted. The first level recreates the demo's tutorial rooms, with the instructions painted on the back wall: sprint, slide under a low vent and up the stairs, a gunman facing away, then slowing time against two gunmen. The rest of the campaign and Endless come from a seeded generator (`genRoom` in `js/levels.js`). It builds stairs, raised sections, sloped ceilings, slide tunnels, ledges, glass, cover crates, barrels and furniture, so every level always lays out the same. The map legend is at the top of `js/levels.js`. The generator keeps crate blocks clear of vent openings, and every campaign room plus a few hundred Endless rooms have been checked with a search that uses the real movement physics (sprint, jump, slide) to confirm the exit door can be reached from the spawn.
 
-## Ads (CrazyGames)
+## CrazyGames
 
-`ADS_ENABLED` in `js/platform.js` (set to `false` for a Basic Launch upload). Midgames only play at the end of a run, before its results: every 2nd level clear and the 1st, 3rd, 5th… Endless run of a session. They never play from a button. Rewarded ads are opt-in: **double coins** on the results screen and **revive** in Endless (at most once a minute). There is one desktop banner on the home screen, and none during play. Happytime fires on 3-star clears, boss levels and new Endless bests. Campaign progress is reported with `reportGameCompletedPercentage`. For the leaderboard, put the key in `LEADERBOARD_KEY` and the best Endless score gets submitted.
+This build is for a **Basic Launch**, so it has no ads at all: no midgames, no rewarded ads and no banners. Happytime fires only when you beat a boss level. Campaign progress is reported with `reportGameCompletedPercentage`. For the leaderboard, put the key in `LEADERBOARD_KEY` and the best Endless score gets submitted.
 
 ## Controls
 
@@ -109,7 +109,7 @@ On touch screens the HUD switches to touch controls, and the painted tutorial te
 index.html
 css/style.css     UI: ink panels with cut corners, keycaps, HUD, touch controls
 js/util.js        math, seeded RNG, colour helpers, glow sprite cache
-js/platform.js    CrazyGames SDK v3 wrapper: events, ads, banners, accounts, data
+js/platform.js    CrazyGames SDK v3 wrapper: events, happytime, accounts, data (no ads)
 js/audio.js       synthesized guns, impacts, glass and explosions; streams the music track (assets/audio, 30% volume) and slows it in slow motion
 js/data.js        weapons, enemy archetypes, skins, hats, missions, style table
 js/levels.js      map legend, themes, chapters, handcrafted levels, room generator
