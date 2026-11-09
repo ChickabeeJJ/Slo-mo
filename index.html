@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0c0e15">
+  <meta name="description" content="Slo-Mo - a slow-motion ragdoll shootout. Sprint, slide and flip through 30 levels of white rooms, bend time and send red gunmen tumbling into pieces.">
+  <title>Slo-Mo</title>
+  <link rel="stylesheet" href="css/style.css?v=1">
+  <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
+</head>
+<body>
+  <canvas id="stage" aria-label="Game"></canvas>
+
+  <!-- =============================== HUD =============================== -->
+  <div id="hud" class="hidden">
+    <div class="stage-chip" id="stageChip">
+      <span class="chip-num" id="chipNum">1</span>
+      <div class="chip-body">
+        <b id="chipTitle">ORIENTATION</b>
+        <div class="chip-sub"><span class="dots" id="roomDots"></span><span id="chipSub">ROOM 1/4</span></div>
+      </div>
+    </div>
+    <div class="hud-mid">
+      <b id="hudScore">0</b>
+      <span id="hudTime">0:00.0</span>
+    </div>
+    <div class="hud-right">
+      <button class="round" id="btnPause" aria-label="Pause"><span class="ic" data-icon="pause"></span></button>
+    </div>
+
+    <div class="combo hidden" id="combo"><b id="comboNum">x2</b><span>COMBO</span><i id="comboBar"></i></div>
+
+    <div class="focus" id="focus">
+      <span class="ic" data-icon="clock"></span>
+      <div class="focus-track"><div class="focus-fill" id="focusFill"></div></div>
+      <kbd id="focusKey">Q</kbd>
+    </div>
+    <div class="ammo" id="ammo">
+      <b id="ammoName">PISTOL</b>
+      <div class="ammo-row"><span id="ammoPips" class="pips"></span><span id="ammoNum">9</span></div>
+      <small id="ammoHint"><kbd>R</kbd> RELOAD</small>
+    </div>
+
+    <div class="death hidden" id="death">
+      <b id="deathTitle">YOU DIED</b>
+      <span id="deathSub">CLICK OR PRESS R TO RETRY</span>
+      <div class="death-btns hidden" id="deathBtns"></div>
+    </div>
+
+    <!-- touch -->
+    <div class="joy" id="joy"><div class="joy-base"></div><div class="joy-knob" id="joyKnob"></div></div>
+    <div class="aimpad" id="aimpad"><div class="aim-base"><span>AIM + FIRE</span></div><div class="aim-knob" id="aimKnob"></div></div>
+    <div class="tbtns" id="tbtns">
+      <button class="tb tb-slow" data-act="slow"><span class="ic" data-icon="clock"></span><small>SLOW</small></button>
+      <button class="tb tb-jump" data-act="jump"><span class="ic" data-icon="up"></span><small>JUMP</small></button>
+      <button class="tb tb-slide" data-act="slide"><span class="ic" data-icon="slide"></span><small>SLIDE</small></button>
+      <button class="tb tb-reload" data-act="reload"><span class="ic" data-icon="reload"></span></button>
+      <button class="tb tb-grab hidden" data-act="pick" id="tbGrab"><small>GRAB</small></button>
+    </div>
+  </div>
+
+  <!-- =============================== HOME =============================== -->
+  <section id="home" class="screen">
+    <div class="home-panel">
+      <h1 class="title"><span class="t1">SLO</span><span class="t2">MO</span></h1>
+      <p class="tagline">BEND TIME. DROP THEM ALL.</p>
+      <div class="home-menu">
+        <button class="btn primary big" id="btnPlay"><span class="ic" data-icon="play"></span><span class="bt"><b>PLAY</b><small id="playSub">LEVEL 1</small></span></button>
+        <div class="btn-row duo">
+          <button class="btn mode" id="btnLevels"><span class="ic" data-icon="grid"></span><span class="bt"><b>LEVELS</b><small id="levelsSub">0 / 90 STARS</small></span></button>
+          <button class="btn mode" id="btnEndless"><span class="ic" data-icon="infinity"></span><span class="bt"><b>ENDLESS</b><small id="endlessSub">BEST 0</small></span></button>
+        </div>
+        <div class="btn-row duo">
+          <button class="btn tile" id="btnArmory"><span class="ic" data-icon="gun"></span><b>ARMORY</b></button>
+          <button class="btn tile" id="btnMissions"><span class="ic" data-icon="scroll"></span><b>MISSIONS</b><i class="dot hidden" id="missionDot"></i></button>
+        </div>
+      </div>
+    </div>
+    <div class="corner tr">
+      <button class="pill streak hidden" id="streakChip"><span class="ic" data-icon="gift"></span><b>DAILY</b></button>
+      <div class="pill"><span class="ic star" data-icon="star"></span><b id="homeStars">0</b></div>
+      <div class="pill"><span class="ic coin" data-icon="coin"></span><b class="coin-val">0</b></div>
+      <button class="round" id="btnSettings" aria-label="Settings"><span class="ic" data-icon="gear"></span></button>
+    </div>
+    <div class="home-hint" id="homeHint"></div>
+  </section>
+
+  <!-- ============================== LEVELS ============================== -->
+  <section id="levels" class="screen hidden">
+    <header class="bar">
+      <button class="round" data-back aria-label="Back"><span class="ic" data-icon="back"></span></button>
+      <nav class="seg" id="chapterTabs"></nav>
+      <div class="pill"><span class="ic star" data-icon="star"></span><b id="levelsStars">0</b></div>
+    </header>
+    <div class="chapter-head" id="chapterHead"></div>
+    <div class="level-grid" id="levelGrid"></div>
+  </section>
+
+  <!-- ============================== ARMORY ============================== -->
+  <section id="armory" class="screen hidden">
+    <header class="bar">
+      <button class="round" data-back aria-label="Back"><span class="ic" data-icon="back"></span></button>
+      <nav class="seg" id="armoryTabs">
+        <button data-tab="weapon">WEAPONS</button>
+        <button data-tab="skin">COLORS</button>
+        <button data-tab="hat">HATS</button>
+      </nav>
+      <div class="pill"><span class="ic coin" data-icon="coin"></span><b class="coin-val">0</b></div>
+    </header>
+    <div class="armory">
+      <div class="armory-preview card">
+        <canvas id="previewCanvas" width="320" height="320"></canvas>
+        <div class="preview-info" id="previewInfo"></div>
+      </div>
+      <div class="armory-grid card" id="armoryGrid"></div>
+    </div>
+  </section>
+
+  <div id="modal" class="modal hidden"><div class="sheet" id="sheet"></div></div>
+  <div id="cgBanner" class="ad-slot hidden" aria-label="Advertisement"></div>
+  <div id="toasts"></div>
+  <div id="rotate" class="hidden"><div><span class="ic" data-icon="rotate"></span><p>TURN YOUR DEVICE SIDEWAYS</p><button class="btn primary" id="btnRotateOk"><b>PLAY ANYWAY</b></button></div></div>
+
+  <script src="js/util.js?v=1"></script>
+  <script src="js/platform.js?v=1"></script>
+  <script src="js/audio.js?v=1"></script>
+  <script src="js/data.js?v=1"></script>
+  <script src="js/levels.js?v=1"></script>
+  <script src="js/progress.js?v=1"></script>
+  <script src="js/world.js?v=1"></script>
+  <script src="js/ragdoll.js?v=1"></script>
+  <script src="js/fx.js?v=1"></script>
+  <script src="js/game.js?v=1"></script>
+  <script src="js/icons.js?v=1"></script>
+  <script src="js/ui.js?v=1"></script>
+  <script src="js/main.js?v=1"></script>
+</body>
+</html>
