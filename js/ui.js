@@ -146,8 +146,7 @@ const UI = (() => {
       else if (own) tag = '<small class="own">OWNED</small>';
       else if (it.stars) tag = `<small><span class="ic star" data-icon="star"></span>FREE AT ${it.stars}</small>`;
       else tag = `<small><span class="ic coin" data-icon="coin"></span>${fmt(it.price)}</small>`;
-      const abil = it.ability ? `<i class="tag">${ARMOR_ABILITY[it.ability]}</i>` : '';
-      return `${head}<button class="item ${armorySel === it.id ? 'sel' : ''}" data-id="${it.id}">${abil}<canvas width="192" height="128"></canvas><b>${it.name}</b>${tag}</button>`;
+      return `${head}<button class="item ${armorySel === it.id ? 'sel' : ''}" data-id="${it.id}"><canvas width="192" height="128"></canvas><b>${it.name}</b>${tag}</button>`;
     }).join('');
     Icons.hydrate($('armoryGrid'));
     $('armoryGrid').querySelectorAll('.item').forEach(b => {
