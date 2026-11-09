@@ -89,7 +89,7 @@ Chapter 1 is handcrafted. The first level recreates the demo's tutorial rooms, w
 | `E` | Grab a dropped gun |
 | `P` | Pause (Esc is left for leaving fullscreen) |
 
-On touch screens the HUD switches to touch controls, and the painted tutorial text describes them instead of keys. Controls: a floating move stick on the left (flick up to jump, down to slide). Tap or hold anywhere else on the screen to shoot toward that spot, with a gentle snap onto an enemy right next to your finger (Settings can turn that off). Fingers are tracked separately, so moving and shooting at once works. Matte JUMP, SLIDE, SLOW and reload buttons sit in the bottom-right corner (push all the way to sprint, flick up to jump, down to slide) and an aim stick on the right. Tap the aim stick to auto-aim and fire at the nearest visible enemy, or drag to aim yourself (with a soft snap you can turn off in Settings). There are JUMP, SLIDE, SLOW and reload buttons around the fire stick, and a GRAB button appears next to dropped guns. The SLOW button's ring doubles as the slow-motion meter.
+On touch screens the HUD switches to touch controls, and the painted tutorial text describes them instead of keys. A floating move stick sits on the left: push it all the way to sprint, flick up to jump, flick down to slide. Tap or hold anywhere else on the screen to shoot toward that spot, with a gentle snap onto an enemy right next to your finger (you can turn this off in Settings). Each finger is tracked separately, so you can move and shoot at the same time. Matte JUMP, SLIDE, SLOW and reload buttons sit in the bottom-right corner, the SLOW button's ring doubles as the slow-motion meter, and a GRAB button appears next to dropped guns.
 
 ## Project layout
 
