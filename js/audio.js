@@ -135,6 +135,7 @@ const Sfx = (() => {
     tone(62, 1.1, 'sine', 0.85, 0.3); tone(38, 1.3, 'sine', 0.6, 0.6, 0.03);   // sub thump
     for (let i = 0; i < 7; i++) noise(0.06, 0.18, rand(1500, 4000), 'bandpass', 3, 0.12 + i * rand(0.05, 0.12));   // debris rattle
   }
+  function appear() { if (!ensure()) return; noise(0.25, 0.14, 900, 'bandpass', 1.5, 0, 2.2); tone(220, 0.18, 'sine', 0.05, 1.6); }
   function beep(k) { if (!ensure()) return; tone(1500 + k * 900, 0.05, 'square', 0.035, 1); }
   function crate() { if (!ensure()) return; noise(0.1, 0.25, 900, 'bandpass', 2); tone(rand(140, 200), 0.08, 'triangle', 0.12, 0.7); }
 
@@ -238,7 +239,7 @@ const Sfx = (() => {
   function suspend(s) { if (ac) s ? ac.suspend() : ac.resume(); }
 
   return {
-    ensure, shot, enemyShot, spin, charged, split, fuse, alarm, smash, growl, beep, dry, reload, shell, whiz, ricochet, wallHit, deflect, laser, hit, armor, crumble, thud, hurtPlayer, swing,
+    ensure, shot, enemyShot, spin, charged, split, fuse, alarm, smash, growl, beep, appear, dry, reload, shell, whiz, ricochet, wallHit, deflect, laser, hit, armor, crumble, thud, hurtPlayer, swing,
     glass, boom, crate, step, jump, land, slide, flip, slowIn, slowOut, heartbeat, door, clear, click, coin, star, combo, win, lose,
     unlock, denied, setTime, setIntensity, setSfx, setMusic, setMusicPaused, setAdMuted, setPlatformMute, suspend,
   };

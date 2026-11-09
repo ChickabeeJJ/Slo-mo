@@ -46,27 +46,77 @@ const Fx = (() => {
   }
   function trail(x, y, col) { add({ k: 'dust', x, y, vx: rand(-15, 15), vy: rand(-30, -5), life: 0.35, t: 0, col, r: rand(3, 6), g: 0 }); }
 
-  // A layered, toon-style blast that reads on white rooms: a white flash core, solid fireball puffs
-  // cooling from white to yellow to orange to soot, two shockwave rings, a dust wave along the floor,
-  // hot debris streaks, drifting embers and a slow smoke column.
+  /* --------------------------------------------------------- explosions */
+  // Billow textures: soft, lumpy alpha masks built once from overlapping blurred blobs, then tinted
+  // per colour on demand and cached. Fire and smoke are made of these, so they read as volume
+  // rather than flat circles.
+  const masks = [], tinted = new Map();
+  function mask(i) {
+    if (masks[i]) return masks[i];
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d'), R = mulberry32(i * 977 + 13);
+    for (let k = 0; k < 18; k++) {
+      const a = R() * TAU, d = R() * 26, x = 64 + Math.cos(a) * d, y = 64 + Math.sin(a) * d, r = 18 + R() * 26;
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, 'rgba(255,255,255,0.55)'); gr.addColorStop(0.6, 'rgba(255,255,255,0.25)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+    }
+    // a little grain so the billow isn't perfectly smooth
+    const img = g.getImageData(0, 0, 128, 128), d = img.data;
+    for (let q = 3; q < d.length; q += 4) d[q] = Math.min(255, d[q] * (0.82 + R() * 0.36));
+    g.putImageData(img, 0, 0);
+    return (masks[i] = c);
+  }
+  function sprite(i, col) {
+    const key = i + col;
+    let c = tinted.get(key);
+    if (c) return c;
+    c = document.createElement('canvas'); c.width = c.height = 128;
+    const g = c.getContext('2d');
+    g.drawImage(mask(i), 0, 0);
+    g.globalCompositeOperation = 'source-in'; g.fillStyle = col; g.fillRect(0, 0, 128, 128);
+    tinted.set(key, c);
+    return c;
+  }
+  // colour temperature of burning gas, hottest first
+  const HEAT = ['#fffdf2', '#fff3c4', '#ffe08a', '#ffc24d', '#ff9a2e', '#f2701f', '#d24c17', '#9c3415', '#5e2a1e', '#3b2b27'];
+  const SMOKE = ['#2b2b30', '#38383e', '#47474d', '#57575d', '#6a6a70', '#7e7e84'];
+
   function explosion(x, y, R, groundY) {
-    add({ k: 'flash', x, y, life: 0.16, t: 0, r: R * 1.1 });
-    for (let i = 0; i < 16; i++) {
-      const a = rand(0, TAU), d = rand(0, R * 0.38);
-      add({ k: 'puff', x: x + Math.cos(a) * d * 0.4, y: y + Math.sin(a) * d * 0.3, vx: Math.cos(a) * d * 3.2, vy: Math.sin(a) * d * 2.4 - rand(40, 160), life: rand(0.45, 0.8), t: rand(-0.06, 0), r: rand(0.16, 0.3) * R, g: -120 });
-    }
-    rings.push({ x, y, r: R * 1.15, col: '#ffffff', w: 14, t: 0, life: 0.32, edge: true });
-    rings.push({ x, y, r: R * 1.5, col: '#ffb347', w: 5, t: -0.06, life: 0.5 });
+    // white-hot flash and heat bloom
+    add({ k: 'xflash', x, y, life: 0.22, t: 0, r: R * 1.6 });
+    // the fireball: billows thrown out fast, then dragged to a halt, cooling and rising
     for (let i = 0; i < 26; i++) {
-      const a = rand(-Math.PI, 0) + (Math.random() < 0.25 ? Math.PI : 0), v = rand(350, 950);
-      add({ k: 'spark', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rand(0.25, 0.6), t: 0, col: Math.random() < 0.5 ? '#ffd27a' : '#ff8a3d', g: 1100, w: rand(1.6, 3) });
+      const a = rand(0, TAU), sp = rand(0.6, 2.6) * R;
+      add({ k: 'xfire', x: x + rand(-6, 6), y: y + rand(-6, 6), vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.8 - rand(30, 120), drag: 5.5, g: -160,
+        life: rand(0.45, 0.95), t: rand(-0.05, 0), r: rand(0.22, 0.42) * R, grow: rand(0.6, 1.2), rot: rand(0, TAU), vr: rand(-2, 2), m: i % 6 });
     }
-    for (let i = 0; i < 18; i++) add({ k: 'ember', x: x + rand(-R * 0.4, R * 0.4), y: y + rand(-R * 0.3, R * 0.2), vx: rand(-60, 60), vy: rand(-160, -40), life: rand(0.8, 1.8), t: 0, r: rand(1.5, 3), g: -20 });
-    for (let i = 0; i < 14; i++) add({ k: 'soot', x: x + rand(-R * 0.3, R * 0.3), y: y + rand(-R * 0.3, R * 0.1), vx: rand(-40, 40), vy: rand(-120, -50), life: rand(1.6, 2.8), t: rand(-0.35, -0.1), r: rand(0.14, 0.26) * R, g: -15 });
-    if (groundY != null && groundY - y < R) {
-      for (let i = 0; i < 22; i++) {
+    // heavy smoke that takes over from the fire and rolls upward
+    for (let i = 0; i < 22; i++) {
+      const a = rand(0, TAU), sp = rand(0.2, 1.1) * R;
+      add({ k: 'xsmoke', x: x + Math.cos(a) * R * 0.2, y: y + Math.sin(a) * R * 0.15, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp * 0.6 - rand(40, 110), drag: 2.2, g: -55,
+        life: rand(1.6, 2.8), t: rand(-0.3, -0.05), r: rand(0.3, 0.5) * R, grow: rand(1.1, 1.9), rot: rand(0, TAU), vr: rand(-0.6, 0.6), m: (i + 3) % 6, a0: rand(0.42, 0.62) });
+    }
+    // burning debris arcing out on smoke trails
+    for (let i = 0; i < 12; i++) {
+      const a = rand(-Math.PI * 0.95, -Math.PI * 0.05), sp = rand(380, 900);
+      add({ k: 'debris', x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, g: 1500, life: rand(0.8, 1.5), t: 0, s: rand(2.5, 6), rot: rand(0, TAU), vr: rand(-18, 18), bounce: true, hot: Math.random() < 0.6 });
+    }
+    // sparks: thin, fast, motion-blurred
+    for (let i = 0; i < 40; i++) {
+      const a = rand(0, TAU), v = rand(500, 1400);
+      add({ k: 'spark', x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 200, life: rand(0.18, 0.55), t: 0, col: Math.random() < 0.6 ? '#fff0b8' : '#ffb347', g: 1300, w: rand(1.2, 2.4) });
+    }
+    // embers that drift up long after the bang
+    for (let i = 0; i < 24; i++) add({ k: 'ember', x: x + rand(-R * 0.5, R * 0.5), y: y + rand(-R * 0.4, R * 0.2), vx: rand(-80, 80), vy: rand(-220, -60), life: rand(1.2, 2.6), t: rand(-0.4, 0), r: rand(1.2, 2.6), g: -30, drag: 0.8 });
+    // a fast, faint pressure ring
+    rings.push({ x, y, r: R * 1.9, col: '#ffffff', w: 4, t: 0, life: 0.22, soft: true });
+    // dust thrown along the floor
+    if (groundY != null && groundY - y < R * 1.2) {
+      for (let i = 0; i < 18; i++) {
         const dir = i % 2 ? 1 : -1;
-        add({ k: 'dust', x: x + dir * rand(0, 20), y: groundY - rand(2, 10), vx: dir * rand(250, 620), vy: rand(-40, -5), life: rand(0.5, 0.9), t: 0, col: '#c9c9cf', r: rand(6, 13), g: 0 });
+        add({ k: 'xsmoke', x: x + dir * rand(0, 24), y: groundY - rand(4, 14), vx: dir * rand(300, 700), vy: rand(-40, -10), drag: 3.5, g: -10,
+          life: rand(0.9, 1.6), t: 0, r: rand(0.14, 0.24) * R, grow: rand(1.4, 2.2), rot: rand(0, TAU), vr: rand(-1, 1), m: i % 6, a0: 0.5, dust: true });
       }
     }
   }
@@ -95,6 +145,8 @@ const Fx = (() => {
       if (p.t < 0) continue;
       p.vy += (p.g || 0) * dt;
       if (p.k === 'smoke' || p.k === 'dust' || p.k === 'soot' || p.k === 'puff') { p.vx *= 1 - 3 * dt; p.vy *= 1 - 2 * dt; }
+      if (p.drag) { const k = Math.exp(-p.drag * dt); p.vx *= k; p.vy *= k; }
+      if (p.k === 'debris' && p.hot && Math.random() < 0.7 && parts.length < MAX) parts.push({ k: 'xsmoke', x: p.x, y: p.y, vx: rand(-15, 15), vy: rand(-30, -10), drag: 1, g: -20, life: rand(0.5, 0.9), t: 0, r: rand(4, 8), grow: 2.2, rot: rand(0, TAU), vr: 0, m: (Math.random() * 6) | 0, a0: 0.5 });
       p.x += p.vx * dt; p.y += p.vy * dt;
       if (p.rot != null) p.rot += p.vr * dt;
       if (p.bounce && room.solidAt(p.x, p.y)) { p.y -= p.vy * dt; p.vy *= -0.3; p.vx *= 0.6; p.vr *= 0.5; }
@@ -127,6 +179,29 @@ const Fx = (() => {
       ctx.fillStyle = c.col; ctx.fillRect(-3, -1.3, 6, 2.6);
       ctx.restore();
     }
+    // smoke first (under everything), then the fireball
+    for (const p of parts) {
+      if (p.k !== 'xsmoke' || p.t < 0) continue;
+      const k = p.t / p.life;
+      const col = p.dust ? (dark ? '#4a4f5c' : '#cfc9bd') : SMOKE[Math.min(SMOKE.length - 1, Math.floor(k * SMOKE.length))];
+      const r = p.r * (1 + p.grow * easeOut(k));
+      ctx.globalAlpha = p.a0 * (k < 0.12 ? k / 0.12 : 1) * (1 - k) * (dark ? 0.9 : 1);
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot + p.vr * p.t);
+      ctx.drawImage(sprite(p.m, col), -r, -r, r * 2, r * 2);
+      ctx.restore();
+    }
+    for (const p of parts) {
+      if (p.k !== 'xfire' || p.t < 0) continue;
+      const k = p.t / p.life;
+      const col = HEAT[Math.min(HEAT.length - 1, Math.floor(Math.pow(k, 0.8) * HEAT.length))];
+      const r = p.r * (0.55 + p.grow * easeOut(Math.min(1, k * 1.6)));
+      ctx.globalAlpha = k < 0.7 ? 1 : (1 - k) / 0.3;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot + p.vr * p.t);
+      ctx.drawImage(sprite(p.m, col), -r, -r, r * 2, r * 2);
+      if (k < 0.35) { ctx.globalAlpha = (0.35 - k) / 0.35 * 0.9; ctx.drawImage(sprite(p.m, '#ffffff'), -r * 0.55, -r * 0.55, r * 1.1, r * 1.1); }
+      ctx.restore();
+    }
+    ctx.globalAlpha = 1;
     // soot first so the fire sits on top of it
     for (const p of parts) {
       if (p.k !== 'soot' || p.t < 0) continue;
@@ -138,6 +213,20 @@ const Fx = (() => {
       if (p.t < 0) continue;
       const a = 1 - p.t / p.life;
       switch (p.k) {
+        case 'xflash': {
+          const k = p.t / p.life;
+          Glow.draw(ctx, '#fff6dc', p.x, p.y, p.r * (0.6 + 0.6 * k), (1 - k) * 0.95);
+          Glow.draw(ctx, '#ffffff', p.x, p.y, p.r * 0.35, (1 - k));
+          break;
+        }
+        case 'xfire': case 'xsmoke': break;
+        case 'debris':
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+          ctx.fillStyle = p.hot ? (p.t / p.life < 0.5 ? '#ffb347' : '#5a3a2a') : (dark ? '#20232c' : '#3a3d48');
+          ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.7);
+          ctx.restore();
+          if (p.hot && p.t / p.life < 0.5) Glow.draw(ctx, '#ff9a2e', p.x, p.y, 7, 0.6);
+          break;
         case 'flash': {
           const k = p.t / p.life;
           ctx.fillStyle = `rgba(255,255,255,${0.95 * (1 - k)})`;
@@ -165,8 +254,9 @@ const Fx = (() => {
           break;
         case 'soot': break;
         case 'spark':
-          ctx.strokeStyle = rgba(p.col, a); ctx.lineWidth = p.w;
-          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.025, p.y - p.vy * 0.025); ctx.stroke();
+          ctx.strokeStyle = rgba(p.col, a); ctx.lineWidth = p.w; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - p.vx * 0.035, p.y - p.vy * 0.035); ctx.stroke();
+          ctx.fillStyle = `rgba(255,255,240,${a})`; ctx.fillRect(p.x - p.w / 2, p.y - p.w / 2, p.w, p.w);
           break;
         case 'dust': case 'smoke':
           ctx.fillStyle = rgba(p.col, a * (p.k === 'smoke' ? 0.45 : 0.35));
@@ -196,6 +286,7 @@ const Fx = (() => {
     for (const r of rings) {
       const k = r.t / r.life;
       if (k < 0) continue;
+      if (r.soft) { ctx.strokeStyle = `rgba(255,255,255,${(1 - k) * 0.35})`; ctx.lineWidth = r.w + 6 * (1 - k); ctx.beginPath(); ctx.arc(r.x, r.y, r.r * easeOut(k), 0, TAU); ctx.stroke(); continue; }
       if (r.edge) { ctx.strokeStyle = `rgba(90,90,100,${(1 - k) * 0.5})`; ctx.lineWidth = r.w * (1 - k) + 3; ctx.beginPath(); ctx.arc(r.x, r.y, r.r * easeOut(k), 0, TAU); ctx.stroke(); }
       ctx.strokeStyle = rgba(r.col, (1 - k) * 0.85); ctx.lineWidth = r.w * (1 - k) + 0.5;
       ctx.beginPath(); ctx.arc(r.x, r.y, r.r * easeOut(k), 0, TAU); ctx.stroke();

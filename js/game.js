@@ -139,7 +139,8 @@ const Game = (() => {
     player.pickup = roomPickup && mode !== 'menu' ? { id: roomPickup.id, ammo: roomPickup.ammo, cd: 0.2, held: true } : null;
     player.facing = 1; player.aim = 0;
     for (const d of room.enemyDefs) enemies.push(makeEnemy(d.type, d.x, d.y, d.away));
-    ambushes = room.ambushDefs.map(a => Object.assign({}, a, { state: 'wait', t: 0, anim: 0 }));
+    // each ambush picks where it springs from: behind you most often, sometimes above, sometimes ahead
+    ambushes = room.ambushDefs.map((a, i) => Object.assign({}, a, { state: 'wait', t: 0, anim: 0, mode: ['behind', 'above', 'behind', 'ahead'][(i + Math.floor(a.x / 40)) % 4] }));
     room.ambushState = ambushes;
     crates = room.crateDefs.map(c => Object.assign(Rigid.make({ x: c.x, y: c.y, a: 0, L: 32, T: 32, density: 3.2, e: 0.12, mu: 0.75 }), { crate: true, sleep: 1, hp: 4 }));
     room.dyn = [];
@@ -218,18 +219,47 @@ const Game = (() => {
     return e;
   }
 
-  // Surprise enemies: once you pass a trigger line they simply appear, as in the original.
-  // Kept fair: they only ever appear ahead of you and a good distance away (never behind you
-  // or on top of you), they show their sight line as usual, and they wait a beat before firing.
+  // Surprise enemies: cross a trigger line and someone appears where you aren't looking: behind
+  // you, or up on a ledge or deck above, or further ahead. Still fair: never closer than ~280px,
+  // they make a faint sound when they appear (the off-screen arrow points to them), and they take
+  // a longer beat before the first shot, longest when they're behind you.
+  function standSpot(x, fromY) {
+    if (x < 30 || x > room.w - 30) return null;
+    const gy = groundBelow(x, fromY);
+    if (gy == null) return null;
+    if (room.boxHit(x - 13, gy - 92, x + 13, gy - 2, panes) || !room.isInside(x, gy - 40)) return null;
+    return { x, y: gy };
+  }
+  function ambushSpot(a) {
+    const p = player, dir = Math.abs(p.vx) > 40 ? Math.sign(p.vx) : p.facing;
+    const tries = {
+      behind: () => { for (let d = 300; d <= 520; d += 20) { const s = standSpot(p.x - dir * d, p.y - 140); if (s && Math.abs(s.y - p.y) < 180) return s; } return null; },
+      above: () => {
+        for (let d = 160; d <= 560; d += 40) for (const sg of [dir, -dir]) {
+          const x = p.x + sg * d;
+          for (let y = p.y - 360; y < p.y - 80; y += 20) { const s = standSpot(x, y); if (s && s.y < p.y - 70) return s; }
+        }
+        return null;
+      },
+      ahead: () => (Math.abs(p.x - a.x) >= 280 && (a.x - p.x) * dir > 0 ? { x: a.x, y: a.y } : null),
+    };
+    for (const m of [a.mode, 'behind', 'above', 'ahead']) { const s = tries[m](); if (s && dist(s.x, s.y, p.x, p.y) >= 280) return { s, m }; }
+    return null;
+  }
   function updateAmbushes() {
     for (const a of ambushes) {
       if (a.state !== 'wait' || !player.alive || player.x < a.trigger) continue;
-      if (Math.abs(player.x - a.x) < 220 || player.x > a.x) { a.state = 'skip'; continue; }
-      const e = makeEnemy(a.type, a.x, a.y, false);
-      e.facing = player.x < a.x ? -1 : 1; e.aim = e.facing > 0 ? 0 : Math.PI;
-      e.alert = true; e.reactT = e.def.react * reactMul() + 0.35; e.lastX = player.x; e.lastY = player.y - 58;
+      const spot = ambushSpot(a);
+      a.state = spot ? 'done' : 'skip';
+      if (!spot) { emit('ambushSkip'); continue; }
+      const e = makeEnemy(a.type, spot.s.x, spot.s.y, false);
+      e.facing = player.x < e.x ? -1 : 1; e.aim = Math.atan2(player.y - 60 - (e.y - 74), player.x - e.x);
+      e.alert = true; e.reactT = e.def.react * reactMul() + (spot.m === 'behind' ? 0.75 : 0.5);
+      e.lastX = player.x; e.lastY = player.y - 58;
+      e.body.alpha = 0;
+      Fx.dust(e.x, e.y, 6, room.theme.side, 0.6);
+      Sfx.appear();
       enemies.push(e);
-      a.state = 'done';
       emit('ambush');
     }
   }
@@ -846,6 +876,7 @@ const Game = (() => {
     if (sees) { e.lastX = pc.x; e.lastY = pc.y; e.lostT = 0; } else e.lostT += dt;
     if (e.flinch > 0) e.flinch -= dt;
     if (e.body.flash > 0) e.body.flash -= dt * 4;
+    if (e.body.alpha != null) { e.body.alpha += dt * 8; if (e.body.alpha >= 1) e.body.alpha = null; }
 
     let want = 0;
     if (e.alert && p.alive) {
@@ -1308,9 +1339,10 @@ const Game = (() => {
   }
   function explode(x, y, R, byPlayer, big) {
     Sfx.boom();
-    Fx.explosion(x, y, R * (big ? 0.85 : 0.75), groundBelow(x, y - 10));
+    Fx.explosion(x, y, R * (big ? 0.7 : 0.62), groundBelow(x, y - 10));
+    hitstop = Math.max(hitstop, 0.06);
     room.decals.push({ x, y: y + 10, kind: 'scorch', r: R * 0.47 });
-    shake(big ? 18 : 13); flash = big ? 0.35 : 0.25; flashCol = '#fff2c4';
+    shake(big ? 22 : 16); flash = big ? 0.42 : 0.32; flashCol = '#ffe2a8';
     cam.kick = Math.max(cam.kick, 0.06);
     slowMo(0.6, 0.3);
     for (const e of enemies) {
