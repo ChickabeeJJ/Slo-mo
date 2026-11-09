@@ -7,7 +7,7 @@
 **Description:**
 Slo-Mo is a stylish 2D action shooter where every bullet is visible and time is yours to bend. Sprint, slide under gunfire, front-flip over cover and hit Q to slow the world to a crawl. Line up a headshot, shoot an enemy's bullet out of the air, or blow up a barrel. Enemies go limp, drain to white and shatter into blocks.
 
-Fight through 30 levels across five chapters, from white offices to a lamp-lit after-hours tower. Earn three stars on every level, chain kills into huge style combos, then take on Endless mode, where the rooms never stop and the score is all that matters. Spend coins in the Armory on a Hand Cannon, Shotgun, Twin Pistols and Battle Rifle, plus colours and hats. Come back daily for new missions and a growing login reward.
+Fight through 75 levels across five chapters (a white training lab, offices, a warehouse, a glass highrise and a neon-lit after-hours floor), with the difficulty ramping all the way. Earn three stars on every level, chain kills into huge style combos, then take on Endless mode, where the rooms never stop and the score is all that matters. Spend coins in the Armory on 13 guns with their own tricks (ricochet rounds, homing rounds, grenades, a minigun, a wall-piercing railgun) plus colours and hats. Come back daily for new missions and a growing login reward.
 
 **Controls:**
 - A / D: move · Shift: sprint

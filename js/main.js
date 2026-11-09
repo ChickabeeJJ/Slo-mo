@@ -65,7 +65,7 @@
   window.addEventListener('resize', () => {
     Game.resize(); UI.checkRotate();
     const panel = document.querySelector('.home-panel');
-    if (panel && UI.screen === 'home') Game.setMenuInset(panel.getBoundingClientRect().right);
+    if (panel && UI.screen === 'home') Game.setMenuInset(panel.getBoundingClientRect().right + Math.min(320, window.innerWidth * 0.2));
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {

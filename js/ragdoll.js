@@ -59,43 +59,64 @@ class Body {
     this.facing = f;
     this.t += dt;
     const speed = Math.abs(st.vx);
-    const mf = speed > 5 ? Math.sign(st.vx) * f : 1;
-    if (st.grounded && !st.slide) this.phase += speed * dt / 15;
+    const mf = speed > 5 ? Math.sign(st.vx) * f : 1;          // 1 running forward, -1 backpedalling
+    // landing impact: remembered from the fall speed, eased out over a moment
+    if (!st.grounded) this.fallV = Math.max(this.fallV || 0, st.vy || 0);
+    if (st.grounded && this.wasAir && !st.slide) this.land = clamp((this.fallV || 0) / 900, 0.25, 1);
+    if (st.grounded) this.fallV = 0;
+    this.wasAir = !st.grounded;
+    this.land = Math.max(0, (this.land || 0) - dt * 4.5);
+    if (st.grounded && !st.slide) this.phase += speed * dt / (st.sprint ? 17 : 14);
     const T = this.T;
     const set = (i, x, y) => { T[i].x = x; T[i].y = y; };
-    let pel = [0, -44], neck;
-    const run = st.grounded && !st.slide ? clamp(speed / 160, 0, 1) : 0;
+    const run = st.grounded && !st.slide ? clamp(speed / 170, 0, 1) : 0;
     const sprint = st.sprint ? 1 : 0;
-    let fFoot, bFoot;
+    this.leanS = lerp(this.leanS || 0, mf * run * (5 + sprint * 9), 1 - Math.exp(-10 * dt));
+    let pel, neck, fFoot, bFoot, fBend = -1, bBend = -1;
     if (st.slide) {
-      pel = [-4, -16];
-      neck = [-17, -46];
-      fFoot = [34, -3]; bFoot = [14, -3];
+      // low power slide: hips almost on the floor, chest reclined, lead leg straight out
+      const wob = Math.sin(this.t * 30) * 0.6;
+      pel = [-1, -9 + wob];
+      const rec = 0.55;                                          // recline angle above the floor (rad)
+      neck = [pel[0] - Math.cos(rec) * LEN.torso, pel[1] - Math.sin(rec) * LEN.torso];
+      fFoot = [38, -4]; bFoot = [12, -3];
     } else if (!st.grounded) {
-      pel = [0, -48];
-      const fall = clamp(st.vy / 600, -1, 1);
-      neck = [2, -82];
-      fFoot = [9 - fall * 4, -14 + fall * 10]; bFoot = [-7, -10 + fall * 8];
-      if (st.flip) { fFoot = [8, -24]; bFoot = [-2, -22]; pel = [0, -44]; neck = [4, -76]; }
+      const fall = clamp((st.vy || 0) / 650, -1, 1);
+      pel = [0, -47];
+      neck = [2 + fall * 2, -81];
+      if (fall < 0) { fFoot = [10, -22 - fall * 4]; bFoot = [-9, -6]; }               // rising: lead knee up, trail leg back
+      else { fFoot = [9 - fall * 2, -14 + fall * 9]; bFoot = [-7, -9 + fall * 7]; }    // falling: legs reach for the floor
+      if (st.flip) { fFoot = [8, -26]; bFoot = [0, -24]; pel = [0, -44]; neck = [6, -74]; }
     } else {
       const ph = this.phase;
-      pel = [0, -44 - Math.abs(Math.cos(ph)) * 2.5 * run + (1 - run) * Math.sin(this.t * 2.2) * 0.6];
-      const lean = mf * run * (4 + sprint * 7);
-      neck = [pel[0] + lean, pel[1] - LEN.torso + Math.abs(lean) * 0.2];
-      const stride = (12 + sprint * 9) * run;
-      const lift = (7 + sprint * 6) * run;
-      const legAt = p => [Math.sin(p) * stride * mf, -Math.max(0, Math.cos(p)) * lift];
-      fFoot = run > 0.05 ? legAt(ph) : [7, 0];
-      bFoot = run > 0.05 ? legAt(ph + Math.PI) : [-6, 0];
+      const back = mf < 0 ? 0.7 : 1;
+      const dip = this.land * 10;
+      pel = [this.leanS * 0.25 + (1 - run) * Math.sin(this.t * 0.9) * 1.1, -44 + Math.abs(Math.sin(ph)) * 3.2 * run + dip + (1 - run) * Math.sin(this.t * 2.2) * 0.7];
+      const lean = this.leanS + this.land * 5;
+      neck = [pel[0] + lean, pel[1] - LEN.torso + Math.abs(lean) * 0.18 + Math.cos(ph * 2) * 0.8 * run];
+      const stride = (13 + sprint * 11) * run * back;
+      const lift = (8 + sprint * 8) * run * back;
+      const legAt = p => {
+        const sw = Math.cos(p);                                   // >0 swing forward, <0 planted and pushing
+        return [Math.sin(p) * stride * mf, -Math.max(0, sw) * lift - Math.max(0, -Math.sin(p) * mf) * sw * 0];
+      };
+      if (run > 0.05) { fFoot = legAt(ph); bFoot = legAt(ph + Math.PI); }
+      else { fFoot = [8, 0]; bFoot = [-7, 0]; }
+      // heel kick on the trailing leg while sprinting
+      if (sprint && run > 0.5) for (const [ft, p] of [[fFoot, ph], [bFoot, ph + Math.PI]]) if (Math.sin(p) * mf < -0.3 && Math.cos(p) > 0) ft[1] -= 6;
     }
     set(J.PELVIS, pel[0], pel[1]);
     set(J.NECK, neck[0], neck[1]);
-    const tdx = neck[0] - pel[0], tdy = neck[1] - pel[1], tl = Math.hypot(tdx, tdy) || 1;
-    set(J.HEAD, neck[0] + tdx / tl * LEN.neck, neck[1] + tdy / tl * LEN.neck);
+    // the head turns a little toward where the gun points
+    const tdx = neck[0] - pel[0], tdy = neck[1] - pel[1];
+    let ha = Math.atan2(tdy, tdx);
+    if (st.slide) ha = lerp(ha, -Math.PI / 2 + 0.25, 0.7);          // chin up, eyes on the target
+    if (st.gun && st.aim != null) { const al = f > 0 ? st.aim : Math.PI - st.aim; ha += clamp(al * 0.3, -0.35, 0.35); }
+    set(J.HEAD, neck[0] + Math.cos(ha) * LEN.neck, neck[1] + Math.sin(ha) * LEN.neck);
     // legs (knees point forward)
-    let k = ik(pel[0], pel[1], fFoot[0], fFoot[1], LEN.thigh, LEN.shin, -1);
+    let k = ik(pel[0], pel[1], fFoot[0], fFoot[1], LEN.thigh, LEN.shin, fBend);
     set(J.FKNEE, k[0], k[1]); set(J.FFOOT, k[2], k[3]);
-    k = ik(pel[0], pel[1], bFoot[0], bFoot[1], LEN.thigh, LEN.shin, -1);
+    k = ik(pel[0], pel[1], bFoot[0], bFoot[1], LEN.thigh, LEN.shin, bBend);
     set(J.BKNEE, k[0], k[1]); set(J.BFOOT, k[2], k[3]);
     // arms
     const sh = [neck[0], neck[1] + 4];
@@ -109,6 +130,7 @@ class Body {
       if (st.dual) bh = [sh[0] + Math.cos(al + 0.12) * (28 - (st.kick2 || 0) * 7), sh[1] + Math.sin(al + 0.12) * (28 - (st.kick2 || 0) * 7)];
       else if (st.twoHand) bh = [fh[0] + ca * 11 - sa * 2, fh[1] + sa * 11 + ca * 2];
       else bh = [fh[0] - ca * 2 - sa * 3, fh[1] - sa * 2 + ca * 3];
+      if (st.slide && !st.twoHand && !st.dual) bh = [pel[0] - 30, -3];
       if (st.reload > 0) { const r = Math.sin(st.reload * Math.PI); fh[1] += r * 10; bh[0] -= r * 6 * ca; bh[1] += r * 14; }
       k = ik(sh[0], sh[1], fh[0], fh[1], LEN.upper, LEN.fore, 1);
       set(J.FELB, k[0], k[1]); set(J.FHAND, k[2], k[3]);
@@ -120,7 +142,7 @@ class Body {
       const swing = run * 14;
       let fh = [sh[0] + Math.sin(ph + Math.PI) * swing * mf + 3, sh[1] + 27 - run * 4];
       let bh = [sh[0] + Math.sin(ph) * swing * mf - 2, sh[1] + 27 - run * 4];
-      if (st.slide) { fh = [sh[0] + 10, sh[1] + 14]; bh = [sh[0] - 14, sh[1] + 20]; }
+      if (st.slide) { fh = [sh[0] + 22, sh[1] + 2]; bh = [pel[0] - 30, -3]; }
       if (!st.grounded && !st.slide) { fh = [sh[0] + 14, sh[1] - 12]; bh = [sh[0] - 12, sh[1] - 8]; }
       if (st.melee != null) {
         const m = st.melee;   // 0..1: wind up then slash
@@ -145,7 +167,7 @@ class Body {
     const dxr = st.x - this.lastRoot.x, dyr = st.y - this.lastRoot.y;
     this.lastRoot.x = st.x; this.lastRoot.y = st.y;
     if (this.first) { this.first = false; for (let i = 0; i < 11; i++) { this.pts[i].x = T[i].x; this.pts[i].y = T[i].y; } return; }
-    const K = st.slide || st.flip ? 1400 : 1000, D = 2 * Math.sqrt(K) * 0.75;
+    const K = st.slide || st.flip ? 1500 : 1100, D = 2 * Math.sqrt(K) * 0.72;
     for (let i = 0; i < 11; i++) {
       const p = this.pts[i];
       p.x += dxr; p.y += dyr;
@@ -325,27 +347,114 @@ function drawHead(ctx, neck, head, size, col, body, f) {
 }
 
 function drawHat(ctx, hat, cx, cy, ux, uy, size, f) {
+  // head-local frame: a = toward the face, b = up out of the head
   const rx = uy, ry = -ux;
   const P = (a, b) => [cx + rx * a * f + ux * b, cy + ry * a * f + uy * b];
-  const h = size / 2;
-  const box = (a0, b0, a1, b1, c, z = 0.075) => prism(ctx, [P(a0, b0), P(a1, b0), P(a1, b1), P(a0, b1)], ZP - z, ZP + z, c, shade(c, 0.18), shade(c, -0.15));
+  const h = size / 2, t = performance.now() / 1000;
+  const poly = (pts, c, z = 0.075) => prism(ctx, pts.map(([a, b]) => P(a, b)), ZP - z, ZP + z, c, shade(c, 0.2), shade(c, -0.16), shade(c, -0.28));
+  const box = (a0, b0, a1, b1, c, z) => poly([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], c, z);
   switch (hat) {
-    case 'band': box(-h - 1, h * 0.35, h + 1, h * 0.05, '#ff5d73', 0.078); box(-h - 6, h * 0.3, -h - 1, h * 0.1, '#ff5d73', 0.02); break;
-    case 'cap': box(-h - 1, h + 5, h + 1, h * 0.4, '#2f3646'); box(h - 2, h * 0.55, h + 9, h * 0.4, '#2f3646', 0.06); break;
-    case 'shades': box(-1, h * 0.35, h + 1.5, -h * 0.05, '#111318', 0.078); break;
-    case 'visor': box(-2, h * 0.5, h + 2, -h * 0.15, '#58e1ff', 0.078); break;
-    case 'tophat': box(-h + 1, h + 15, h - 1, h + 1, '#15171d', 0.06); box(-h - 3, h + 3, h + 3, h, '#15171d', 0.075); box(-h + 1, h + 5, h - 1, h + 3, '#ff4f5e', 0.061); break;
+    case 'band': {
+      const c = '#ff4f5e', w = Math.sin(t * 13) * 2.2, w2 = Math.sin(t * 13 + 1.3) * 2.2;
+      poly([[-h - 1, h * 0.12], [-h - 12, h * 0.05 + w2], [-h - 13, h * 0.32 + w2], [-h - 1, h * 0.36]], shade(c, -0.15), 0.02);
+      poly([[-h - 1, h * 0.25], [-h - 9, h * 0.3 + w], [-h - 10, h * 0.55 + w], [-h - 1, h * 0.48]], c, 0.03);
+      box(-h - 1, h * 0.48, h + 1, h * 0.1, c, 0.079);
+      box(-h - 3, h * 0.55, -h, h * 0.05, shade(c, -0.1), 0.04);
+      break;
+    }
+    case 'beanie': {
+      const c = '#3b5b8f';
+      poly([[-h - 1, h * 0.25], [h + 1, h * 0.25], [h + 0.5, h + 4], [h * 0.45, h + 7.5], [-h * 0.45, h + 7.5], [-h - 0.5, h + 4]], c, 0.078);
+      box(-h - 1.5, h * 0.62, h + 1.5, h * 0.12, shade(c, 0.12), 0.081);
+      for (const a of [-h * 0.5, 0, h * 0.5]) box(a - 0.6, h * 0.6, a + 0.6, h * 0.14, shade(c, -0.12), 0.082);
+      box(-3.5, h + 13, 3.5, h + 6.5, '#f2f2f4', 0.05);
+      break;
+    }
+    case 'cap': {
+      const c = '#2f3646';
+      poly([[-h - 1, h * 0.45], [h + 1, h * 0.45], [h + 0.5, h + 4], [h * 0.35, h + 7], [-h * 0.55, h + 7], [-h - 1, h + 4]], c, 0.078);
+      poly([[h * 0.1, h * 0.45], [h + 1, h * 0.45], [h + 0.5, h + 4], [h * 0.35, h + 7]], '#ff4f5e', 0.079);
+      poly([[h - 1, h * 0.62], [h + 12, h * 0.42], [h + 12, h * 0.26], [h - 1, h * 0.36]], shade(c, -0.25), 0.07);
+      box(-1.5, h + 8.6, 1.5, h + 6.6, '#ff4f5e', 0.02);
+      break;
+    }
+    case 'party': {
+      const c = '#ff5d9e';
+      poly([[-h * 0.85, h * 0.6], [h * 0.85, h * 0.6], [1, h + 21]], c, 0.06);
+      poly([[-h * 0.58, h + 4], [h * 0.62, h + 4], [h * 0.42, h + 9], [-h * 0.36, h + 9]], '#ffd34d', 0.061);
+      poly([[-h * 0.2, h + 13], [h * 0.3, h + 13], [h * 0.15, h + 16], [-h * 0.05, h + 16]], '#58e1ff', 0.061);
+      box(-2, h + 24, 4, h + 19, '#ffd34d', 0.03);
+      break;
+    }
+    case 'shades': {
+      box(-h - 1, h * 0.4, h + 2, h * 0.28, '#111318', 0.079);
+      poly([[0, h * 0.4], [h + 2, h * 0.4], [h + 1.5, -h * 0.12], [1.5, -h * 0.12]], '#15171e', 0.081);
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1.1;
+      const g1 = P(h * 0.35, h * 0.3), g2 = P(h * 0.9, h * 0.0);
+      ctx.beginPath(); ctx.moveTo(g1[0], g1[1]); ctx.lineTo(g2[0], g2[1]); ctx.stroke();
+      break;
+    }
+    case 'phones': {
+      const c = '#22252e';
+      box(-h * 0.8, h + 5.5, h * 0.8, h + 2.5, c, 0.086);
+      poly([[-h * 0.8, h + 5.5], [-h * 0.8, h + 2.5], [-h - 1.5, h * 0.7], [-h - 1.5, h * 0.9 + 2]], c, 0.086);
+      box(-2, h + 3, 2, 5, shade(c, 0.1), 0.088);
+      box(-5, 5, 5, -6, c, 0.095);
+      box(-3, 3, 3, -4, '#58e1ff', 0.097);
+      break;
+    }
+    case 'visor': {
+      box(-h - 1, h * 0.38, 0, h * 0.08, '#20232c', 0.079);
+      poly([[-1, h * 0.55], [h + 3, h * 0.48], [h + 3, -h * 0.2], [-1, -h * 0.12]], '#58e1ff', 0.081);
+      Glow.draw(ctx, '#58e1ff', P(h * 0.7, h * 0.2)[0], P(h * 0.7, h * 0.2)[1], 14, 0.55 + Math.sin(t * 4) * 0.15);
+      box(h * 0.2, h * 0.3, h + 2.5, h * 0.2, '#e6fbff', 0.082);
+      break;
+    }
+    case 'cowboy': {
+      const c = '#a8743f';
+      poly([[-h - 13, h + 5], [-h - 9, h + 1], [h + 9, h + 1], [h + 13, h + 5], [h + 9, h + 3.5], [-h - 9, h + 3.5]], shade(c, -0.08), 0.08);
+      poly([[-h + 1, h + 3], [0, h + 3], [0, h + 12], [-h + 2, h + 14]], c, 0.065);
+      poly([[0, h + 3], [h - 1, h + 3], [h - 2, h + 14], [0, h + 12]], c, 0.065);
+      box(-h + 1, h + 6, h - 1, h + 3, '#4a2f1a', 0.067);
+      break;
+    }
+    case 'tophat': {
+      const c = '#15171d';
+      box(-h - 5, h + 3.5, h + 5, h + 0.5, c, 0.085);
+      poly([[-h + 1, h + 3], [h - 1, h + 3], [h, h + 20], [-h, h + 20]], c, 0.068);
+      poly([[-h + 0.9, h + 7.5], [h - 0.9, h + 7.5], [h - 0.95, h + 4], [-h + 0.95, h + 4]], '#ff4f5e', 0.07);
+      box(h * 0.4, h + 18, h * 0.65, h + 9, 'rgba(255,255,255,0.18)', 0.07);
+      break;
+    }
+    case 'horns': {
+      const c = '#2b2d36', tip = '#f0e6d8';
+      for (const [a0, z, col] of [[-6, 0.05, shade(c, -0.15)], [2, 0.08, c]]) {
+        poly([[a0, h - 1], [a0 + 5.5, h - 1], [a0 + 7, h + 6], [a0 + 2.5, h + 6.5]], col, z);
+        poly([[a0 + 2.5, h + 6.5], [a0 + 7, h + 6], [a0 + 10, h + 13]], tip, z);
+      }
+      break;
+    }
     case 'crown': {
       const c = '#ffd34d';
-      box(-h, h + 6, h, h, c, 0.072);
-      for (const a of [-h, -1.5, h - 3]) box(a, h + 11, a + 3, h + 6, c, 0.03);
+      for (const a0 of [-h - 0.5, -2.5, h - 4.5]) {
+        poly([[a0, h + 4], [a0 + 5, h + 4], [a0 + 2.5, h + 12]], c, 0.07);
+        box(a0 + 1.3, h + 14, a0 + 3.7, h + 11.6, '#fff1a8', 0.03);
+      }
+      box(-h - 0.8, h + 5, h + 0.8, h - 0.5, c, 0.08);
+      box(-1.6, h + 3.5, 1.6, h + 0.5, '#e2434b', 0.082);
+      box(h - 3.5, h + 3.5, h - 0.8, h + 1, '#4da3ff', 0.082);
+      box(-h + 0.8, h + 3.5, -h + 3.5, h + 1, '#45e08a', 0.082);
       break;
     }
     case 'halo': {
-      const p = P(0, h + 10);
-      Glow.draw(ctx, '#fff3a8', p[0], p[1], 16, 0.7);
-      ctx.strokeStyle = '#ffe680'; ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.ellipse(p[0], p[1], 11, 3.5, Math.atan2(ry, rx), 0, TAU); ctx.stroke();
+      const p = P(0, h + 11);
+      Glow.draw(ctx, '#fff3a8', p[0], p[1], 24, 0.55 + Math.sin(t * 3) * 0.12);
+      ctx.save(); ctx.translate(p[0], p[1]); ctx.rotate(Math.atan2(ry, rx));
+      ctx.strokeStyle = '#ffe680'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.ellipse(0, 0, 12, 4, 0, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = '#fffbe0'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(0, -0.5, 12, 4, 0, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+      ctx.restore();
       break;
     }
     default: break;
@@ -357,15 +466,59 @@ function drawGun(ctx, hand, ang, id, dual) {
   const L = w.len, c = Math.cos(ang), s = Math.sin(ang);
   const x0 = hand.x - c * 4, y0 = hand.y - s * 4 - 3;
   const nx = -s, ny = c;
-  const q = (a, b) => [x0 + c * a + nx * b, y0 + s * a + ny * b];
-  const col = '#4a4e5c';
   const up = Math.cos(ang) >= 0 ? 1 : -1;
-  // body
-  prism(ctx, [q(0, -3 * up), q(L, -3 * up), q(L, 2 * up), q(0, 2 * up)], ZP - 0.03, ZP + 0.03, col, '#6a6f80', '#33363f');
-  // grip
-  prism(ctx, [q(1, 2 * up), q(6, 2 * up), q(4, 9 * up), q(-1, 9 * up)], ZP - 0.025, ZP + 0.025, '#3b3e48', '#5a5e6c', '#2a2c33');
-  if (id === 'shotgun' || id === 'rifle') prism(ctx, [q(-9, -2 * up), q(0, -2 * up), q(0, 4 * up), q(-9, 5 * up)], ZP - 0.025, ZP + 0.025, '#3b3e48', '#5a5e6c', '#2a2c33');
-  if (id === 'rifle' || id === 'smg') prism(ctx, [q(10, 2 * up), q(14, 2 * up), q(15, 10 * up), q(11, 10 * up)], ZP - 0.02, ZP + 0.02, '#3b3e48', '#5a5e6c', '#2a2c33');
+  const q = (a, b) => [x0 + c * a + nx * b * up, y0 + s * a + ny * b * up];
+  const part = (pts, col, z = 0.03) => prism(ctx, pts.map(([a, b]) => q(a, b)), ZP - z, ZP + z, col, shade(col, 0.18), shade(col, -0.18), shade(col, -0.3));
+  const box = (a0, b0, a1, b1, col, z) => part([[a0, b0], [a1, b0], [a1, b1], [a0, b1]], col, z);
+  const metal = '#4a4e5c', dark = '#2f323b', wood = '#7a5235';
+  const grip = (col = '#3b3e48') => part([[1, 2], [6, 2], [4, 9], [-1, 9]], col, 0.025);
+  switch (id) {
+    case 'revolver':
+      box(0, -3, L, 1.5, metal); box(2, -3.5, 9, 3, dark, 0.035); grip(wood);
+      box(L - 3, -4.5, L - 1, -3, metal, 0.01);
+      break;
+    case 'smg': case 'burst':
+      box(-6, -3, L, 2, metal); box(10, 2, 14, 10, dark, 0.02); grip(); box(-10, -2, -5, 3, dark, 0.02);
+      if (id === 'burst') box(4, -3.2, 12, -1.8, '#ff8a3d', 0.032);
+      break;
+    case 'shotgun':
+      box(0, -3, L, 1, metal); box(8, 1, 19, 4, '#6a6f80', 0.028); part([[-11, -2], [0, -2], [0, 4], [-11, 6]], wood, 0.025); grip(wood);
+      break;
+    case 'rifle':
+      box(-4, -3, L, 2, metal); box(12, 2, 16, 11, dark, 0.02); part([[-12, -2], [-4, -2], [-4, 4], [-12, 6]], dark, 0.025); grip(); box(6, -6, 14, -3, dark, 0.015);
+      break;
+    case 'bouncer':
+      box(0, -3.5, L, 2, '#5a5f70'); box(L - 4, -4.5, L, 3, '#ff8a3d', 0.035); grip();
+      break;
+    case 'splitter':
+      box(0, -3, L - 4, 2, metal); grip();
+      box(L - 4, -5, L + 2, -3, dark, 0.02); box(L - 4, -1.5, L + 3, 0.5, dark, 0.02); box(L - 4, 2, L + 2, 4, dark, 0.02);
+      break;
+    case 'smart': {
+      box(0, -3, L, 2, '#d7dde6'); grip('#9aa4b4'); box(4, -3.3, 12, -1.6, '#4da3ff', 0.032);
+      const g = q(8, -2.5); Glow.draw(ctx, '#4da3ff', g[0], g[1], 9, 0.7);
+      break;
+    }
+    case 'launcher':
+      box(-6, -5, L, 4, '#5d6b4a', 0.04); box(L - 3, -6, L + 1, 5, '#3f4a32', 0.045); grip(); box(8, 4, 12, 9, dark, 0.02);
+      break;
+    case 'minigun': {
+      box(-6, -5, 8, 5, dark, 0.045);
+      const spin = performance.now() / 40;
+      for (let i = 0; i < 3; i++) { const o = Math.sin(spin + i * 2.1) * 2.6; box(8, o - 1, L, o + 1, i === 1 ? metal : '#5a5e6c', 0.02 + i * 0.008); }
+      box(L - 2, -4, L, 4, dark, 0.03); box(-2, -9, 6, -5, '#3b3e48', 0.02); grip();
+      break;
+    }
+    case 'railgun': {
+      box(-8, -2, L, 2, '#2a2d38', 0.03); box(0, -5, L + 2, -3, metal, 0.02); box(0, 3, L + 2, 5, metal, 0.02);
+      for (const a of [6, 14, 22]) { box(a, -3, a + 3, 3, '#58e1ff', 0.035); }
+      const g = q(L, 0); Glow.draw(ctx, '#58e1ff', g[0], g[1], 12, 0.6);
+      grip(); part([[-14, -2], [-8, -2], [-8, 4], [-14, 6]], dark, 0.025);
+      break;
+    }
+    default:
+      box(0, -3, L, 2, metal); grip();
+  }
 }
 
 /* --------------------------------------------------------------- pieces */

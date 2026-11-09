@@ -7,7 +7,7 @@
 const Game = (() => {
   // ---- tuning
   const G = 2500, WALK = 250, SPRINT = 425, ACC_G = 3200, ACC_A = 1800, JUMP_V = 840;
-  const SLIDE_V = 610, SLIDE_T = 0.5, STAND_H = 92, SLIDE_H = 34;
+  const SLIDE_V = 610, SLIDE_T = 0.55, STAND_H = 92, SLIDE_H = 28;
   const SLOW_SCALE = 0.26;
 
   let canvas, ctx, dpr = 1, sw = 0, sh = 0;
@@ -44,7 +44,7 @@ const Game = (() => {
     canvas.style.width = sw + 'px'; canvas.style.height = sh + 'px';
   }
 
-  const diff = () => (mode === 'endless' ? clamp(0.2 + endless.n * 0.05, 0, 1) : clamp(levelIdx / (LEVEL_COUNT - 1), 0, 1));
+  const diff = () => (mode === 'endless' ? clamp(0.25 + endless.n * 0.06, 0, 1) : mode === 'campaign' ? levelDiff(levelIdx) : 0.3);
 
   function newRun() {
     return { score: 0, kills: 0, headshots: 0, deaths: 0, combo: 0, comboT: 0, bestCombo: 0, deflects: 0, time: 0, rooms: 0 };
@@ -120,6 +120,7 @@ const Game = (() => {
   function resetRoomEntities() {
     enemies = []; bullets = []; pieces = []; corpses = []; pickups = []; ghosts = []; pendingBooms = [];
     room.decals = [];
+    doorAnim = 0;
     Fx.clear();
     const skin = SKIN[Save.data.skin] || SKINS[0];
     player = makeChar(room.spawn.x, room.spawn.y, {
@@ -143,7 +144,7 @@ const Game = (() => {
       enemies.push(e);
     }
     crates = room.crateDefs.map(c => ({ x: c.x, y: c.y + 16, w: 30, h: 30, vx: 0, vy: 0, rot: 0, vr: 0, grounded: false }));
-    barrels = room.barrelDefs.map(b => ({ x: b.x, y: b.y, w: 28, h: 40, hp: 1, fuse: -1, gone: false }));
+    barrels = room.barrelDefs.map(b => ({ x: b.x, y: b.y, w: 30, h: 42, hp: 1, fuse: -1, gone: false, seed: Math.random() * 10 }));
     panes = room.panesDef.map(g => Object.assign({}, g, { broken: false }));
     doorOpen = enemies.length === 0;
     clearT = -1; roomT = 0; deathT = 0;
@@ -293,7 +294,7 @@ const Game = (() => {
     player.aim = turnTo(player.aim, Math.atan2(tgt.y - (player.y - 74), tgt.x - player.x), dtReal * 2);
     const w = WEAPON[player.weapon.id];
     player.body.gunId = w.id; player.body.dual = !!w.dual;
-    player.body.pose({ x: player.x, y: player.y, facing: 1, aim: player.aim, vx: 0, vy: 0, grounded: true, gun: true, twoHand: ['smg', 'shotgun', 'rifle'].includes(w.id), dual: w.dual, kick: player.weapon.kick }, wdt);
+    player.body.pose({ x: player.x, y: player.y, facing: 1, aim: player.aim, vx: 0, vy: 0, grounded: true, gun: true, twoHand: TWO_HAND.has(w.id), dual: w.dual, kick: player.weapon.kick }, wdt);
     player.weapon.kick = Math.max(0, player.weapon.kick - wdt * 10);
     if (e && e.alive) {
       e.aim = turnTo(e.aim, Math.atan2(player.y - 60 - (e.y - 74), player.x - e.x), wdt * 2);
@@ -343,7 +344,7 @@ const Game = (() => {
       }
     } else {
       const m = screenToWorld(input.mouse.x, input.mouse.y);
-      const sy = p.slideT > 0 || p.crawl ? p.y - 40 : p.y - 74;
+      const sy = p.slideT > 0 || p.crawl ? p.y - 24 : p.y - 74;
       p.aim = Math.atan2(m.y - sy, m.x - p.x);
     }
     const aimF = Math.cos(p.aim) >= 0 ? 1 : -1;
@@ -354,7 +355,9 @@ const Game = (() => {
     if (input.touch && Math.abs(input.axis) > 0.15) mx = input.axis;
     const sprint = input.sprint || (input.touch && Math.abs(input.axis) > 0.88);
     p.sprinting = sprint && Math.abs(mx) > 0.1;
-    const want = mx * (p.sprinting ? SPRINT : WALK);
+    const spinning = (p.pickup || p.weapon).spin > 0.05 || ((p.pickup || p.weapon).chargeT || 0) > 0.05;
+    if (spinning) p.sprinting = false;
+    const want = mx * (p.sprinting ? SPRINT : WALK) * (spinning && w.heavy ? 0.45 : spinning ? 0.7 : 1);
 
     // timers
     p.coyote = p.grounded ? 0.1 : p.coyote - dt;
@@ -457,18 +460,49 @@ const Game = (() => {
     }
     if (pressed.has('reload') && !p.pickup && p.weapon.reloadT <= 0 && p.weapon.ammo < WEAPON[p.weapon.id].mag) startReload();
     input.shootBuf = (input.shootBuf || 0) - dt;
-    const wantShoot = input.touch ? input.aimStick != null : (w.auto ? input.shoot : input.shootBuf > 0);
-    if (wantShoot && pw.cd <= 0) {
+    const holding = input.touch ? input.aimStick != null : input.shoot;
+    const ready = pw.ammo > 0 && (p.pickup || p.weapon.reloadT <= 0);
+    // minigun: spin up before it fires
+    if (w.spinup) {
+      const was = pw.spin || 0;
+      pw.spin = clamp(was + (holding && ready ? dt / w.spinup : -dt / (w.spinup * 0.6)), 0, 1);
+      if (holding && pw.spin < 1 && Math.floor(was * 6) !== Math.floor(pw.spin * 6)) Sfx.spin(pw.spin);
+    } else pw.spin = 0;
+    let wantShoot;
+    if (w.charge) {
+      // railgun: hold to charge, release to fire
+      if (holding && ready && pw.cd <= 0) {
+        const was = pw.chargeT || 0;
+        pw.chargeT = was + dt;
+        if (was < w.charge && pw.chargeT >= w.charge) Sfx.charged();
+        else if (Math.floor(was * 8) !== Math.floor(pw.chargeT * 8) && pw.chargeT < w.charge) Sfx.spin(pw.chargeT / w.charge);
+      }
+      wantShoot = !holding && (pw.chargeT || 0) >= w.charge;
+      if (!holding && (pw.chargeT || 0) < w.charge) pw.chargeT = 0;
+    } else if (w.spinup) wantShoot = holding && pw.spin >= 1;
+    else wantShoot = input.touch ? holding : (w.auto ? input.shoot : input.shootBuf > 0);
+    // burst follow-up rounds
+    if (pw.burstLeft > 0) {
+      pw.burstT -= dt;
+      if (pw.burstT <= 0) {
+        if (pw.ammo > 0) { fire(p, w, pw, true); pw.burstT = w.burstGap; }
+        pw.burstLeft = pw.ammo > 0 ? pw.burstLeft - 1 : 0;
+      }
+    }
+    if (wantShoot && pw.cd <= 0 && !(pw.burstLeft > 0)) {
       input.shootBuf = 0;
       if (p.pickup) {
         if (p.pickup.ammo > 0) fire(p, w, p.pickup);
         if (p.pickup.ammo <= 0) dropPickupGun(true);
       } else if (p.weapon.reloadT <= 0) {
-        if (p.weapon.ammo > 0) fire(p, w, p.weapon);
-        else { Sfx.dry(); startReload(); pw.cd = 0.2; }
-        if (p.weapon.ammo <= 0) startReload();
+        if (p.weapon.ammo > 0) {
+          fire(p, w, p.weapon);
+          if (w.burst) { p.weapon.burstLeft = w.burst - 1; p.weapon.burstT = w.burstGap; }
+        } else { Sfx.dry(); startReload(); pw.cd = 0.2; }
       }
+      pw.chargeT = 0;
     }
+    if (!p.pickup && p.weapon.ammo <= 0 && !(p.weapon.burstLeft > 0) && p.weapon.reloadT <= 0) startReload();
 
     // ---- pick up guns
     p.nearPickup = null;
@@ -484,7 +518,7 @@ const Game = (() => {
     p.body.dual = !!ww.dual;
     p.body.pose({
       x: p.x, y: p.y, facing: p.facing, aim: p.aim, vx: p.vx, vy: p.vy, grounded: p.grounded, slide: sliding, flip: p.flipping ? p.flip * p.flipDir : 0,
-      sprint: p.sprinting, gun: true, twoHand: ['smg', 'shotgun', 'rifle'].includes(ww.id), dual: ww.dual, kick: p.weapon.kick, kick2: p.weapon.kick2,
+      sprint: p.sprinting, gun: true, twoHand: TWO_HAND.has(ww.id), dual: ww.dual, kick: p.weapon.kick, kick2: p.weapon.kick2,
       reload: !p.pickup && p.weapon.reloadT > 0 ? 1 - p.weapon.reloadT / WEAPON[p.weapon.id].reload : 0,
     }, dt);
     if (p.body.flash > 0) p.body.flash -= dt * 4;
@@ -498,8 +532,8 @@ const Game = (() => {
     Sfx.dry();
   }
 
-  function fire(c, w, ws) {
-    ws.cd = w.rate;
+  function fire(c, w, ws, followUp) {
+    if (!followUp) ws.cd = w.rate;
     ws.ammo--;
     ws.held = true;
     const dual = !!w.dual;
@@ -510,14 +544,19 @@ const Game = (() => {
     const spreadK = ts < 0.6 ? 0.5 : 1;
     for (let i = 0; i < pellets; i++) {
       const a = c.aim + (pellets > 1 ? (i / (pellets - 1) - 0.5) * w.spread * 2 + rand(-0.03, 0.03) : rand(-1, 1) * w.spread * spreadK);
-      bullets.push({ x: mz.x, y: mz.y, ox: mz.x, oy: mz.y, vx: Math.cos(a) * w.speed, vy: Math.sin(a) * w.speed, owner: 'p', pierce: w.pierce || 0, life: w.life || 1.4, t: 0, hits: [], shooter: c, big: w.id === 'revolver' || w.id === 'shotgun' });
+      const sp = BULLET_SPEED * (w.speedK || 1);
+      bullets.push({
+        x: mz.x, y: mz.y, ox: mz.x, oy: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, owner: 'p', pierce: w.pierce || 0, life: w.life || 2.4, t: 0, hits: [], shooter: c,
+        big: !!w.big, kind: w.id, bounce: w.bounce || 0, homing: w.homing || 0, g: w.gravity || 0, blast: w.blast || 0, split: w.split || null, wallPierce: !!w.wallPierce,
+      });
     }
     if (second) c.weapon.kick2 = (w.kick || 1); else c.weapon.kick = (w.kick || 1);
     c.body.shove(-Math.cos(c.aim) * 60 * (w.kick || 1), -Math.sin(c.aim) * 60 * (w.kick || 1), J.FHAND);
     Fx.muzzle(mz.x, mz.y, c.aim, w.id === 'shotgun' ? 1.6 : w.id === 'revolver' ? 1.4 : 1);
     Fx.casing(mz.x - Math.cos(c.aim) * len * 0.6, mz.y, c.facing, w.id === 'shotgun' ? '#c94b3a' : '#d9b25c');
     Sfx.shot(w.id);
-    shake(w.id === 'shotgun' || w.id === 'revolver' ? 7 : 3);
+    if (w.id === 'railgun') { Fx.ring(mz.x, mz.y, 60, '#8fd0ff', 5, 0.35); flash = 0.25; flashCol = '#bfe4ff'; }
+    shake(w.big ? 7 : 3);
     cam.kick = Math.max(cam.kick, w.id === 'shotgun' ? 0.02 : 0.008);
     // gunfire is loud: everyone close enough hears it
     if (mode !== 'menu') for (const e of enemies) {
@@ -549,13 +588,20 @@ const Game = (() => {
   }
 
   /* ----------------------------------------------------------- enemies */
-  const reactMul = () => lerp(1.3, 0.78, diff()) * (mode === 'campaign' && levelIdx === 0 ? 1.5 : 1);
+  // Difficulty knobs, all driven by diff(): enemies react sooner, telegraph for less time, turn faster,
+  // fire more often, more accurately and with faster rounds. The red sight line always comes first.
+  const reactMul = () => lerp(1.0, 0.5, diff()) * (mode === 'campaign' && levelIdx === 0 ? 1.5 : 1);
+  const aimMul = () => lerp(1.0, 0.62, diff());
+  const cdMul = () => lerp(0.95, 0.55, diff());
+  const turnMul = () => lerp(1.1, 1.9, diff());
+  const shotSpeedMul = () => lerp(1.0, 1.4, diff());
+  const spreadMul = () => lerp(1.0, 0.5, diff());
 
   function updateEnemy(e, dt) {
     if (!e.alive) return;
     const d = e.def, p = player;
     const head = { x: e.x, y: e.y - 80 * e.s };
-    const pc = { x: p.x, y: p.y - (p.slideT > 0 || p.crawl ? 24 : 58) };
+    const pc = { x: p.x, y: p.y - (p.slideT > 0 || p.crawl ? 16 : 58) };
     const dx = pc.x - e.x, dd = Math.hypot(dx, pc.y - head.y);
     let sees = false;
     if (p.alive && roomT > 0.7 && dd < 1150) {
@@ -579,7 +625,7 @@ const Game = (() => {
       if (Math.abs(tx - e.x) > 8) e.facing = Math.sign(tx - e.x);
       const sh = { x: e.x, y: e.y - 74 * e.s };
       const ta = Math.atan2((sees ? pc.y : (e.lastY || pc.y)) - sh.y, tx - sh.x);
-      e.aim = turnTo(e.aim, ta, (d.turn || 3) * dt);
+      e.aim = turnTo(e.aim, ta, (d.turn || 3) * turnMul() * dt);
       if (e.reactT > 0) e.reactT -= dt;
       if (d.melee) {
         // blade: run you down
@@ -602,11 +648,11 @@ const Game = (() => {
         if (e.reactT <= 0) {
           if (e.burst > 0) {
             e.burstT -= dt;
-            if (e.burstT <= 0) { enemyFire(e); e.burst--; e.burstT = d.burstGap || 0.1; if (e.burst <= 0) e.cd = rand(d.cd[0], d.cd[1]) * lerp(1.15, 0.85, diff()); }
+            if (e.burstT <= 0) { enemyFire(e); e.burst--; e.burstT = d.burstGap || 0.1; if (e.burst <= 0) e.cd = rand(d.cd[0], d.cd[1]) * cdMul(); }
           } else if (e.cd > 0) e.cd -= dt;
           else if (sees || (e.charge > 0 && e.lostT < 0.25)) {
             e.charge += dt;
-            if (e.charge >= d.aim) { e.charge = 0; e.burst = d.burst || 1; e.burstT = 0; }
+            if (e.charge >= d.aim * aimMul()) { e.charge = 0; e.burst = d.burst || 1; e.burstT = 0; }
           } else e.charge = Math.max(0, e.charge - dt * 2);
         }
         // footwork
@@ -649,8 +695,9 @@ const Game = (() => {
     const mz = e.body.muzzle(len);
     const n = d.pellets || 1;
     for (let i = 0; i < n; i++) {
-      const a = e.aim + (n > 1 ? (i / (n - 1) - 0.5) * d.spread * 2 : rand(-1, 1) * d.spread);
-      bullets.push({ x: mz.x, y: mz.y, ox: mz.x, oy: mz.y, vx: Math.cos(a) * d.speed, vy: Math.sin(a) * d.speed, owner: 'e', pierce: 0, life: d.life || 3, t: 0, hits: [], shooter: e, near: false, rifle: d.gun === 'rifle' });
+      const a = e.aim + (n > 1 ? (i / (n - 1) - 0.5) * d.spread * 2 : rand(-1, 1) * d.spread * spreadMul());
+      const sp = d.speed * shotSpeedMul();
+      bullets.push({ x: mz.x, y: mz.y, ox: mz.x, oy: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, owner: 'e', pierce: 0, life: d.life || 3, t: 0, hits: [], shooter: e, near: false, rifle: d.gun === 'rifle' });
     }
     e.kick = 1;
     Fx.muzzle(mz.x, mz.y, e.aim, d.gun === 'shotgun' ? 1.5 : 1);
@@ -660,22 +707,56 @@ const Game = (() => {
   }
 
   /* ---------------------------------------------------------- bullets */
+  // per-round gimmicks run before the round moves
+  function steerBullet(b, dt) {
+    if (b.g) b.vy += b.g * dt;
+    if (b.homing) {
+      const a = Math.atan2(b.vy, b.vx), sp = Math.hypot(b.vx, b.vy);
+      let best = null, bd = 1e9;
+      for (const e of enemies) {
+        if (!e.alive || b.hits.includes(e)) continue;
+        const c = e.body.center(), d = dist(c.x, c.y, b.x, b.y);
+        const da = Math.abs(angDiff(a, Math.atan2(c.y - b.y, c.x - b.x)));
+        if (d < 720 && da < 1.5 && d < bd) { bd = d; best = c; }
+      }
+      if (best) {
+        const na = turnTo(a, Math.atan2(best.y - b.y, best.x - b.x), b.homing * dt);
+        b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
+        if (Math.random() < 0.5) Fx.trail(b.x, b.y, '#8fd0ff');
+      }
+    }
+    if (b.split && !b.didSplit && b.t >= b.split.t) {
+      b.didSplit = true;
+      const a = Math.atan2(b.vy, b.vx), sp = Math.hypot(b.vx, b.vy);
+      for (const k of [-1, 1]) {
+        const na = a + k * b.split.a;
+        spawned.push(Object.assign({}, b, { vx: Math.cos(na) * sp, vy: Math.sin(na) * sp, hits: b.hits.slice(), split: null, ox: b.x, oy: b.y }));
+      }
+      Fx.sparks(b.x, b.y, a, 6, '#ffd27a', 200); Sfx.split();
+    }
+  }
+  let spawned = [];
+
   function updateBullets(dt) {
     const keep = [];
+    spawned = [];
     for (const b of bullets) {
       b.t += dt;
-      if (b.t > b.life) continue;
+      if (b.t > b.life) { if (b.blast) explode(b.x, b.y, b.blast, true); continue; }
+      steerBullet(b, dt);
       const sp = Math.hypot(b.vx, b.vy);
       const steps = Math.max(1, Math.ceil(sp * dt / 6));
+      const ux = b.vx / (sp || 1), uy = b.vy / (sp || 1);
       let alive = true;
       for (let s = 0; s < steps && alive; s++) {
         const nx = b.x + b.vx * dt / steps, ny = b.y + b.vy * dt / steps;
         // deflect: player rounds knock enemy rounds out of the air
-        if (b.owner === 'p') {
+        if (b.owner === 'p' && !b.blast) {
           for (const o of bullets) {
             if (o.owner !== 'e' || o.dead || o === b) continue;
-            if (segPointDist(b.x, b.y, nx, ny, o.x, o.y).d < 11) {
-              o.dead = true; alive = false;
+            if (segPointDist(b.x, b.y, nx, ny, o.x, o.y).d < 10) {
+              o.dead = true;
+              if (!b.wallPierce) alive = false;
               Fx.sparks(o.x, o.y, Math.atan2(-o.vy, -o.vx), 10, '#ffffff', 520); Fx.ring(o.x, o.y, 30, '#ffd27a', 3, 0.3);
               Sfx.deflect();
               styleEvent(o.x, o.y, 'DEFLECT', 75);
@@ -689,59 +770,74 @@ const Game = (() => {
         // bodies
         const targets = b.owner === 'p' ? enemies : [player, ...enemies];
         for (const c of targets) {
-          if (!c.alive || c === b.shooter || b.hits.includes(c)) continue;
+          if (!c.alive || (c === b.shooter && b.t < 0.4) || b.hits.includes(c)) continue;
           if (c === player && c.invuln > 0) continue;
           if (Math.abs(c.x - nx) > 60 || Math.abs(c.y - 50 - ny) > 90) continue;
           const h = c.body.hitTest(nx, ny, b.big ? 4 : 2.5);
           if (!h) continue;
           b.hits.push(c);
-          if (c === player) { killPlayer(b.vx * 0.5, b.vy * 0.5 - 120, b.shooter, h.idx); alive = false; break; }
+          if (b.blast) { explode(nx, ny, b.blast, b.owner === 'p'); alive = false; break; }
+          if (c === player) { killPlayer(ux * 950, uy * 950 - 180, b.shooter, h.idx); alive = false; break; }
           hitEnemy(c, b, h, nx, ny);
           if (b.pierce > 0) b.pierce--; else { alive = false; break; }
         }
         if (!alive) break;
         // near misses
         if (b.owner === 'e' && player.alive && !b.near) {
-          const pcy = player.y - 50;
-          const dd = Math.hypot(player.x - nx, pcy - ny);
+          const dd = Math.hypot(player.x - nx, player.y - 50 - ny);
           if (dd < 46) {
             b.near = true;
             Sfx.whiz();
-            if (closeCd <= 0 && state === 'play') {
-              closeCd = 5; slowMo(0.55, 0.3);
-              b.closeCall = true;
-            }
+            if (closeCd <= 0 && state === 'play') { closeCd = 5; slowMo(0.55, 0.3); b.closeCall = true; }
           }
         }
         // corpses and loose blocks get shoved
-        for (const cb of corpses) if (Math.abs(cb.pts[J.PELVIS].x - nx) < 60 && Math.abs(cb.pts[J.PELVIS].y - ny) < 70) cb.push(nx, ny, b.vx * 0.5, b.vy * 0.5, 22);
+        for (const cb of corpses) if (Math.abs(cb.pts[J.PELVIS].x - nx) < 60 && Math.abs(cb.pts[J.PELVIS].y - ny) < 70) cb.push(nx, ny, ux * 500, uy * 500, 22);
         for (const pc of pieces) {
           const mx = (pc.a.x + pc.b.x) / 2, my = (pc.a.y + pc.b.y) / 2;
           if (Math.abs(mx - nx) < 16 && Math.abs(my - ny) < 16) {
             const h = 1 / 120;
-            for (const q of [pc.a, pc.b]) { q.px -= b.vx * 0.25 * h; q.py -= (b.vy * 0.25 - 200) * h; }
+            for (const q of [pc.a, pc.b]) { q.px -= ux * 260 * h; q.py -= (uy * 260 - 200) * h; }
             wakePiece(pc);
           }
         }
-        for (const c of crates) if (Math.abs(c.x - nx) < 17 && ny > c.y - c.h - 2 && ny < c.y + 2) { c.vx += b.vx * 0.12; c.vy -= 160; c.vr += sign(b.vx) * 8; c.grounded = false; Fx.chips(nx, ny, b.vx, b.vy, '#c9a477', 4); }
-        for (const br of barrels) if (!br.gone && Math.abs(br.x - nx) < 15 && ny > br.y - br.h && ny < br.y) { detonate(br, b.owner === 'p'); alive = false; break; }
+        for (const c of crates) if (Math.abs(c.x - nx) < 17 && ny > c.y - c.h - 2 && ny < c.y + 2) { c.vx += ux * 160; c.vy -= 160; c.vr += sign(ux) * 8; c.grounded = false; Fx.chips(nx, ny, b.vx, b.vy, '#c9a477', 4); }
+        for (const br of barrels) if (!br.gone && Math.abs(br.x - nx) < 16 && ny > br.y - br.h && ny < br.y) {
+          if (b.blast) { explode(nx, ny, b.blast, b.owner === 'p'); alive = false; break; }
+          lightBarrel(br, b.owner === 'p', ux);
+          if (!b.wallPierce) { alive = false; break; }
+        }
         if (!alive) break;
         // walls and glass
         const hit = room.solidAt(nx, ny, panes);
         if (hit) {
           if (hit !== true) { breakPane(hit, b.vx); b.x = nx; b.y = ny; continue; }
+          if (b.wallPierce) {
+            if (Math.random() < 0.3) Fx.dust(nx, ny, 1, room.theme.side, 0.4);
+            if (nx < -40 || ny < -40 || nx > room.w + 40 || ny > room.h + 40) { alive = false; break; }
+            b.x = nx; b.y = ny; continue;
+          }
           const r = room.ray(b.x, b.y, nx, ny, null, 2) || { x: b.x, y: b.y, nx: -sign(b.vx), ny: 0 };
+          if (b.blast) { explode(r.x, r.y, b.blast, b.owner === 'p'); alive = false; break; }
           Fx.sparks(r.x, r.y, Math.atan2(r.ny, r.nx) || Math.atan2(-b.vy, -b.vx), 5, b.owner === 'p' ? '#ffd27a' : '#ffffff', 300);
           Fx.dust(r.x, r.y, 3, room.theme.side, 0.5);
-          if (Math.random() < 0.25) Sfx.ricochet(); else Sfx.wallHit();
           if (room.decals.length < 220) room.decals.push({ x: r.x, y: r.y, kind: 'hole' });
+          if (b.bounce > 0) {
+            // ricochet: mirror off the face we hit and keep going
+            b.bounce--;
+            if (r.nx) b.vx = Math.abs(b.vx) * r.nx; else if (r.ny) b.vy = Math.abs(b.vy) * r.ny; else { b.vx = -b.vx; b.vy = -b.vy; }
+            b.x = r.x; b.y = r.y; b.ox = r.x; b.oy = r.y; b.hits = []; b.shooter = null;
+            Sfx.ricochet();
+            break;
+          }
+          if (Math.random() < 0.25) Sfx.ricochet(); else Sfx.wallHit();
           alive = false; break;
         }
         b.x = nx; b.y = ny;
       }
       if (alive && !b.dead) keep.push(b);
     }
-    bullets = keep;
+    bullets = keep.concat(spawned);
   }
 
   function breakPane(g, vx) {
@@ -762,14 +858,15 @@ const Game = (() => {
     Fx.chips(x, y, b.vx, b.vy, '#e2434b', head ? 10 : 6);
     if (e.hp > 0) {
       e.body.flash = 1; e.flinch = 0.2;
-      e.body.shove(b.vx * 0.12, b.vy * 0.12, h.idx);
+      e.body.shove(b.vx * 0.25, b.vy * 0.25, h.idx);
       e.vx += Math.sign(b.vx) * 60;
       Sfx.armor();
       Fx.sparks(x, y, Math.atan2(-b.vy, -b.vx), 6, '#ffffff', 300);
       return;
     }
     const info = { head, pierce: b.hits.length > 1, boom: false, crossfire: b.owner === 'e' };
-    killEnemy(e, b.vx * 0.55, b.vy * 0.55 - 150, h.idx, info);
+    const sp = Math.hypot(b.vx, b.vy) || 1, k = b.kind === 'railgun' ? 1700 : b.big ? 1250 : 950;
+    killEnemy(e, b.vx / sp * k, b.vy / sp * k - 170, h.idx, info);
   }
 
   function killEnemy(e, vx, vy, idx, info) {
@@ -854,28 +951,40 @@ const Game = (() => {
     emit('death', { mode, canRevive: mode === 'endless' && !endless.revived });
   }
 
+  // a shot barrel hisses and glows for a moment, then goes up
+  function lightBarrel(br, byPlayer, dir = 0) {
+    if (br.gone || br.fuse >= 0) return;
+    br.fuse = 0.34; br.byPlayer = byPlayer; br.kick = dir;
+    Sfx.fuse();
+    Fx.sparks(br.x, br.y - br.h * 0.6, -Math.PI / 2, 8, '#ffd27a', 260);
+  }
   function detonate(br, byPlayer) {
     if (br.gone) return;
     br.gone = true;
     const x = br.x, y = br.y - 20;
+    // the drum bursts into chunks
+    Fx.chips(x, y, 0, -400, '#ff8a3d', 14); Fx.chips(x, y, 0, -500, '#3a3d48', 8);
+    explode(x, y, 150, byPlayer, true);
+  }
+  function explode(x, y, R, byPlayer, big) {
     Sfx.boom();
-    Fx.fire(x, y, 30); Fx.smoke(x, y, 18, '#8f8f98', 1.4); Fx.ring(x, y, 160, '#ffb347', 10, 0.45); Fx.sparks(x, y, -Math.PI / 2, 24, '#ffd27a', 700);
-    room.decals.push({ x, y: y + 10, kind: 'scorch', r: 70 });
-    shake(18); flash = 0.35; flashCol = '#fff2c4';
+    Fx.fire(x, y, big ? 34 : 24); Fx.smoke(x, y, big ? 20 : 12, '#8f8f98', big ? 1.4 : 1); Fx.ring(x, y, R + 10, '#ffb347', 10, 0.45); Fx.ring(x, y, R * 0.6, '#ffffff', 6, 0.25);
+    Fx.sparks(x, y, -Math.PI / 2, 24, '#ffd27a', 700);
+    room.decals.push({ x, y: y + 10, kind: 'scorch', r: R * 0.47 });
+    shake(big ? 18 : 13); flash = big ? 0.35 : 0.25; flashCol = '#fff2c4';
     cam.kick = Math.max(cam.kick, 0.06);
     slowMo(0.6, 0.3);
-    const R = 150;
     for (const e of enemies) {
       if (!e.alive) continue;
       const c = e.body.center(), d = dist(c.x, c.y, x, y);
       if (d < R) { const a = Math.atan2(c.y - y, c.x - x); killEnemy(e, Math.cos(a) * 1100, Math.sin(a) * 1100 - 500, J.PELVIS, { boom: true }); }
     }
-    if (player.alive) { const d = dist(player.x, player.y - 46, x, y); if (d < R - 20) { const a = Math.atan2(player.y - 46 - y, player.x - x); killPlayer(Math.cos(a) * 1000, Math.sin(a) * 1000 - 500, null, J.PELVIS); } }
+    if (player.alive) { const d = dist(player.x, player.y - 46, x, y); if (d < R - 25) { const a = Math.atan2(player.y - 46 - y, player.x - x); killPlayer(Math.cos(a) * 1000, Math.sin(a) * 1000 - 500, null, J.PELVIS); } }
     for (const cb of corpses) pushRadial(cb.pts, x, y, R + 40, 1300);
     for (const pc of pieces) { pushRadial([pc.a, pc.b], x, y, R + 60, 1300); wakePiece(pc); }
     for (const c of crates) { const d = dist(c.x, c.y - 15, x, y); if (d < R + 40) { const a = Math.atan2(c.y - 15 - y, c.x - x); c.vx += Math.cos(a) * 900; c.vy += Math.sin(a) * 900 - 300; c.vr += rand(-20, 20); c.grounded = false; } }
-    for (const g of panes) if (!g.broken && Math.abs(g.x - x) < R) breakPane(g, g.x - x);
-    for (const o of barrels) if (!o.gone && dist(o.x, o.y, br.x, br.y) < R + 30) pendingBooms.push({ br: o, t: 0.12 });
+    for (const g of panes) if (!g.broken && Math.abs(g.x - x) < R && y > g.y - 40 && y < g.y + g.h + 40) breakPane(g, g.x - x);
+    for (const o of barrels) if (!o.gone && dist(o.x, o.y - 20, x, y) < R + 30) { if (o.fuse < 0) lightBarrel(o, byPlayer); o.fuse = Math.min(o.fuse, 0.12); }
     for (const g of pickups) { g.vx += (g.x - x) * 4; g.vy -= 400; }
     emit('boom');
   }
@@ -891,8 +1000,12 @@ const Game = (() => {
 
   /* -------------------------------------------------------- world bits */
   function updateWorldBits(dt) {
-    for (const pb of pendingBooms) { pb.t -= dt; if (pb.t <= 0) detonate(pb.br, true); }
-    pendingBooms = pendingBooms.filter(pb => pb.t > 0);
+    for (const br of barrels) {
+      if (br.gone || br.fuse < 0) continue;
+      br.fuse -= dt;
+      if (Math.random() < 0.6) Fx.smoke(br.x + rand(-6, 6), br.y - br.h, 1, '#9b9ba3', 0.5);
+      if (br.fuse <= 0) detonate(br, br.byPlayer);
+    }
     for (const cb of corpses) {
       cb.simulate(dt, room, panes);
       if (!cb.broken && cb.deadT > cb.breakAt) { pieces.push(...cb.breakApart()); Sfx.crumble(); Fx.dust(cb.pts[J.PELVIS].x, cb.pts[J.PELVIS].y, 6, '#ffffff'); }
@@ -935,7 +1048,8 @@ const Game = (() => {
     }
     if (state !== 'play' || !player.alive || !room.door || fade) return;
     const d = room.door;
-    if (doorOpen && Math.abs(player.x - d.x) < 24 && Math.abs(player.y - d.y) < 6) {
+    // generous doorway: anywhere across the frame, standing or mid-jump in front of it
+    if (doorOpen && Math.abs(player.x - d.x) < 42 && player.y > d.y - 80 && player.y < d.y + 10) {
       Sfx.door();
       const last = mode === 'campaign' && roomIdx >= level.rooms.length - 1;
       run.rooms++;
@@ -945,6 +1059,14 @@ const Game = (() => {
     }
   }
 
+  let doorAnim = 0;
+  function doorState() {
+    const d = room.door;
+    if (!d) return null;
+    const near = player && Math.abs(player.x - d.x) < 230 && Math.abs(player.y - d.y) < 160;
+    doorAnim = approach(doorAnim, doorOpen && (near || (fade && fade.phase === 'out')) ? 1 : 0, 0.06);
+    return { open: doorOpen, anim: easeOut(doorAnim), left: enemies.filter(e => e.alive).length, near };
+  }
   function restartRoom() {
     if (fade) return;
     fade = {
@@ -1004,7 +1126,7 @@ const Game = (() => {
     ctx.translate(sw / 2, sh / 2); ctx.scale(z, z); ctx.translate(-cam.x + cam.kx, -cam.y + cam.ky);
     View.V.x = cam.x; View.V.y = cam.y + 20;
     View.rel = false;
-    room.drawBack(ctx, clock, doorOpen, panes);
+    room.drawBack(ctx, clock, doorState(), panes);
     room.drawFront(ctx);
 
     // gameplay plane
@@ -1067,7 +1189,7 @@ const Game = (() => {
   function drawLaser(e) {
     const d = e.def;
     if (!d.gun || !e.alert || e.reactT > 0.35 || !player.alive) return;
-    const k = d.laser ? e.charge / d.aim : e.charge / d.aim;
+    const k = e.charge / (d.aim * aimMul());
     if (k <= 0 && !d.laser) return;
     const len = WEAPON[d.gun] ? WEAPON[d.gun].len : 16;
     const m = e.body.muzzle(len);
@@ -1086,6 +1208,23 @@ const Game = (() => {
   function drawBullets() {
     for (const b of bullets) {
       const sp = Math.hypot(b.vx, b.vy), ux = b.vx / sp, uy = b.vy / sp;
+      if (b.owner === 'p' && b.blast) {
+        // grenade: a dark shell with a blinking light
+        ctx.fillStyle = '#3f4a32'; ctx.beginPath(); ctx.arc(b.x, b.y, 6, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#5d6b4a'; ctx.beginPath(); ctx.arc(b.x - 1.5, b.y - 1.5, 3, 0, TAU); ctx.fill();
+        if (Math.sin(clock * 30) > 0) Glow.draw(ctx, '#ff4f5e', b.x, b.y, 10, 0.9);
+        if (Math.random() < 0.5) Fx.trail(b.x, b.y, '#9b9ba3');
+        continue;
+      }
+      if (b.owner === 'p' && b.kind === 'railgun') {
+        const tl = Math.min(dist(b.x, b.y, b.ox, b.oy), 260);
+        const g = ctx.createLinearGradient(b.x - ux * tl, b.y - uy * tl, b.x, b.y);
+        g.addColorStop(0, 'rgba(88,225,255,0)'); g.addColorStop(1, 'rgba(200,245,255,1)');
+        ctx.strokeStyle = g; ctx.lineWidth = 6; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(b.x - ux * tl, b.y - uy * tl); ctx.lineTo(b.x, b.y); ctx.stroke();
+        Glow.draw(ctx, '#58e1ff', b.x, b.y, 22, 0.9);
+        continue;
+      }
       if (b.owner === 'p') {
         const tl = Math.min(dist(b.x, b.y, b.ox, b.oy), 90);
         const g = ctx.createLinearGradient(b.x - ux * tl, b.y - uy * tl, b.x, b.y);
@@ -1116,13 +1255,52 @@ const Game = (() => {
     ctx.moveTo(a[0], a[1]); ctx.lineTo(q[0], q[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(r[0], r[1]); ctx.closePath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
   }
   function drawBarrel(br) {
-    const x0 = br.x - br.w / 2, y0 = br.y - br.h;
-    prism(ctx, [[x0, y0], [x0 + br.w, y0], [x0 + br.w, br.y], [x0, br.y]], ZP - 0.06, ZP + 0.06, '#ff8a3d', '#ffb070', '#d0632a');
-    ctx.fillStyle = '#2a2c33';
-    for (let i = 0; i < 4; i++) { ctx.beginPath(); ctx.moveTo(x0 + i * 8, y0 + 14); ctx.lineTo(x0 + i * 8 + 5, y0 + 14); ctx.lineTo(x0 + i * 8 + 1, y0 + 24); ctx.lineTo(x0 + i * 8 - 4, y0 + 24); ctx.fill(); }
-    ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(x0 + 4, y0 + 3, 3, br.h - 6);
-    const pulse = 0.5 + 0.5 * Math.sin(clock * 5 + br.x);
-    Glow.draw(ctx, '#ff8a3d', br.x, br.y - 20, 34, 0.12 + pulse * 0.1);
+    const w = br.w, h = br.h;
+    const lit = br.fuse >= 0 ? 1 - br.fuse / 0.34 : 0;
+    const jx = lit ? rand(-1.6, 1.6) * lit : 0;
+    const x0 = br.x - w / 2 + jx, y0 = br.y - h, cx = br.x + jx;
+    // depth: a darker copy pushed toward the vanishing point reads as the drum's far side
+    const V = View.V, kz = View.k(ZP + 0.13) - 1;
+    const ox = (cx - V.x) * kz, oy = (y0 + h / 2 - V.y) * kz;
+    ctx.fillStyle = '#7a2d10';
+    ctx.beginPath(); ctx.roundRect(x0 + ox, y0 + oy, w, h, 5); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cx + ox, y0 + oy + 1, w / 2, 4.5, 0, 0, TAU); ctx.fill();
+    // body: a lit cylinder
+    const g = ctx.createLinearGradient(x0, 0, x0 + w, 0);
+    g.addColorStop(0, '#9c3a14'); g.addColorStop(0.18, '#e86b2c'); g.addColorStop(0.34, '#ffb37a'); g.addColorStop(0.5, '#ff8a3d'); g.addColorStop(0.82, '#c9541f'); g.addColorStop(1, '#7f2e0f');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 5); ctx.fill();
+    // ribs
+    for (const ry of [y0 + 10, y0 + h - 9]) {
+      ctx.strokeStyle = 'rgba(70,20,5,0.55)'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.ellipse(cx, ry, w / 2 - 0.5, 3, 0, 0.1, Math.PI - 0.1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,220,180,0.55)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.ellipse(cx, ry - 2, w / 2 - 1, 3, 0, 0.15, Math.PI - 0.15); ctx.stroke();
+    }
+    // hazard label
+    const ly = y0 + 15, lh = h - 28;
+    ctx.fillStyle = '#f4efe6'; ctx.beginPath(); ctx.roundRect(x0 + 5, ly, w - 10, lh, 2); ctx.fill();
+    ctx.fillStyle = '#ffd34d';
+    ctx.beginPath(); ctx.moveTo(cx, ly + 1.5); ctx.lineTo(cx + 6, ly + lh - 1.5); ctx.lineTo(cx - 6, ly + lh - 1.5); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#1d2130'; ctx.lineWidth = 1.1; ctx.stroke();
+    ctx.fillStyle = '#e2434b';
+    ctx.beginPath(); ctx.moveTo(cx, ly + 4); ctx.quadraticCurveTo(cx + 3.5, ly + lh - 4, cx, ly + lh - 3); ctx.quadraticCurveTo(cx - 3.5, ly + lh - 4, cx, ly + 4); ctx.fill();
+    // lid
+    ctx.fillStyle = '#d0632a';
+    ctx.beginPath(); ctx.ellipse(cx, y0 + 1, w / 2, 4.5, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,210,170,0.7)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(cx, y0 + 1, w / 2 - 3, 2.8, 0, 0, TAU); ctx.stroke();
+    ctx.fillStyle = '#5a2410'; ctx.fillRect(cx + 4, y0 - 2, 5, 3);
+    // specular stripe
+    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(x0 + w * 0.26, y0 + 5, 2.5, h - 10);
+    const pulse = 0.5 + 0.5 * Math.sin(clock * 5 + br.seed);
+    if (lit) {
+      // fuse lit: blink hot, spit sparks
+      ctx.fillStyle = `rgba(255,255,255,${(Math.sin(clock * 60) > 0 ? 0.55 : 0.15) * lit + 0.1})`;
+      ctx.beginPath(); ctx.roundRect(x0, y0, w, h, 5); ctx.fill();
+      Glow.draw(ctx, '#ff6a3d', cx, y0 + h / 2, 40 + 30 * lit, 0.4 + 0.4 * lit);
+      Glow.draw(ctx, '#fff2b0', cx + 6, y0 - 2, 10 + 6 * Math.random(), 0.9);
+    } else Glow.draw(ctx, '#ff8a3d', cx, br.y - 6, 30, 0.1 + pulse * 0.08);
   }
   function drawPickup(g) {
     if (g.empty && g.t > 0.5) ctx.globalAlpha = 0.5;

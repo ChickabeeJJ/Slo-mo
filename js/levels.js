@@ -6,6 +6,7 @@
      /  stair rising →   \  stair rising ←      a b  ceiling slopes (rising →, falling →)
      =  thin ledge (jump through from below)    X  solid crate block (cover)
      T  table (3 wide)   B  bench (2 wide)      L  shelf (2 wide)
+     q  potted plant     w  water cooler        u  pallet stack (2 wide)   v  server rack
      C  kickable crate   O  explosive barrel    G  glass pane (stack vertically)
      l  light panel      P  player spawn        D  exit door
      e m s r h k  enemies: gunman, sprayer, breacher, marksman, juggernaut, blade
@@ -31,11 +32,11 @@ const TUTORIAL_TEXT = {
 
 const THEMES = [
   // back wall, wall top highlight, floor top, side, ceiling underside, front face, void, text, light, accent
-  { name: 'white', back: '#eeeef0', top: '#e4e4e8', side: '#bdbdc3', under: '#9b9ba2', front: '#dadade', void: '#d4d4d8', voidHi: '#e6e6ea', text: '#9c9ca4', light: '#ffffff', door: '#5d6070', dark: false },
-  { name: 'warm', back: '#f2eee7', top: '#e9e3d8', side: '#c8beb0', under: '#a69c8f', front: '#e0d9cd', void: '#d9d3c9', voidHi: '#ebe6dd', text: '#a59a8a', light: '#fffaf0', door: '#6a5f55', dark: false },
-  { name: 'concrete', back: '#e3e6ea', top: '#d6dade', side: '#aeb4bc', under: '#8d939c', front: '#cdd1d7', void: '#c9ced4', voidHi: '#dde1e6', text: '#8e959f', light: '#f4f8ff', door: '#4f5866', dark: false },
-  { name: 'sky', back: '#eaf1f7', top: '#dfe8f0', side: '#b3c3d2', under: '#8fa2b5', front: '#d4dfe9', void: '#cddbe8', voidHi: '#e4edf5', text: '#8ba0b4', light: '#ffffff', door: '#4c6178', dark: false },
-  { name: 'night', back: '#2a2f3d', top: '#363c4d', side: '#20242f', under: '#181b23', front: '#323848', void: '#151820', voidHi: '#1f2330', text: '#6b7387', light: '#e9f1ff', door: '#0f1117', dark: true },
+  { name: 'white', decor: 'lab', back: '#eeeef0', top: '#e4e4e8', side: '#bdbdc3', under: '#9b9ba2', front: '#dadade', void: '#d4d4d8', voidHi: '#e6e6ea', text: '#9c9ca4', light: '#ffffff', door: '#5d6070', dark: false },
+  { name: 'warm', decor: 'office', back: '#f2eee7', top: '#e9e3d8', side: '#c8beb0', under: '#a69c8f', front: '#e0d9cd', void: '#d9d3c9', voidHi: '#ebe6dd', text: '#a59a8a', light: '#fffaf0', door: '#6a5f55', dark: false },
+  { name: 'concrete', decor: 'warehouse', back: '#e3e6ea', top: '#d6dade', side: '#aeb4bc', under: '#8d939c', front: '#cdd1d7', void: '#c9ced4', voidHi: '#dde1e6', text: '#8e959f', light: '#f4f8ff', door: '#4f5866', dark: false },
+  { name: 'sky', decor: 'highrise', back: '#eaf1f7', top: '#dfe8f0', side: '#b3c3d2', under: '#8fa2b5', front: '#d4dfe9', void: '#cddbe8', voidHi: '#e4edf5', text: '#8ba0b4', light: '#ffffff', door: '#4c6178', dark: false },
+  { name: 'night', decor: 'night', back: '#2a2f3d', top: '#363c4d', side: '#20242f', under: '#181b23', front: '#323848', void: '#151820', voidHi: '#1f2330', text: '#6b7387', light: '#e9f1ff', door: '#0f1117', dark: true },
 ];
 
 const CHAPTERS = [
@@ -45,7 +46,17 @@ const CHAPTERS = [
   { name: 'HIGHRISE', theme: 3 },
   { name: 'AFTER HOURS', theme: 4 },
 ];
-const LEVELS_PER_CHAPTER = 6;
+const LEVELS_PER_CHAPTER = 15;
+const BOSS_EVERY = 5;               // every 5th level of a chapter ends in a Juggernaut room
+
+// Each chapter builds its rooms differently: height, furniture, glass, catwalks, vents, extra foes.
+const STYLES = [
+  { H: [5, 6], slide: 0.06, glass: 0.3, ledge: 0.08, barrel: 0.18, furn: ['T', 'B', 'C', 'L', 'C', 'X'], extra: 0 },                 // lab
+  { H: [5, 6], slide: 0.05, glass: 0.75, ledge: 0.06, barrel: 0.12, furn: ['T', 'T', 'q', 'w', 'L', 'B', 'q'], extra: 0 },           // offices
+  { H: [6, 8], slide: 0.04, glass: 0.15, ledge: 0.3, barrel: 0.4, furn: ['X', 'u', 'C', 'C', 'L', 'u', 'X'], extra: 1 },            // warehouse
+  { H: [6, 7], slide: 0.06, glass: 0.9, ledge: 0.18, barrel: 0.12, furn: ['q', 'T', 'B', 'q', 'w'], extra: 1 },                     // highrise
+  { H: [5, 7], slide: 0.14, glass: 0.4, ledge: 0.14, barrel: 0.25, furn: ['v', 'v', 'C', 'T', 'q', 'v'], extra: 2 },                // after hours
+];
 
 const HAND_LEVELS = [
   {
@@ -288,11 +299,13 @@ const HAND_LEVELS = [
   },
 ];
 
+// level names per chapter (chapter 1 starts with the six handcrafted ones)
 const GEN_NAMES = [
-  'Paper Trail', 'Open Plan', 'Cubicle Storm', 'Coffee Break', 'Overtime', 'Board Meeting',
-  'Loading Dock', 'Cold Storage', 'Freight', 'Shipping Lanes', 'Forklift Alley', 'Last Crate',
-  'Atrium', 'Elevator Pitch', 'Glass Ceiling', 'Skywalk', 'Mezzanine', 'Corner Office',
-  'Lights Out', 'Night Shift', 'Server Farm', 'Neon Hall', 'Penthouse', 'Last Stand',
+  ['Clean Room', 'Test Fire', 'Drill Hall', 'Calibration', 'White Noise', 'Control Group', 'Sim Run', 'Lab Rat', 'Graduation'],
+  ['Paper Trail', 'Open Plan', 'Cubicle Storm', 'Coffee Break', 'Overtime', 'Board Meeting', 'Water Cooler', 'Reply All', 'Copy Room', 'HR Visit', 'Quarterly', 'Middle Management', 'Hostile Takeover', 'Corner Office', 'Golden Parachute'],
+  ['Loading Dock', 'Cold Storage', 'Freight', 'Shipping Lanes', 'Forklift Alley', 'Pallet Jack', 'Catwalks', 'Bonded', 'Stockroom', 'Inventory', 'Night Delivery', 'Container Yard', 'Overstock', 'Clearance', 'Last Crate'],
+  ['Atrium', 'Elevator Pitch', 'Glass Ceiling', 'Skywalk', 'Mezzanine', 'Sky Lobby', 'Window Washer', 'Stairwell', 'Observation Deck', 'Thin Air', 'Wind Shear', 'Helipad Access', 'Cloud Line', 'Top Floor', 'Vertigo'],
+  ['Lights Out', 'Night Shift', 'Server Farm', 'Neon Hall', 'Graveyard Shift', 'Static', 'Blackout', 'Afterglow', 'Midnight Oil', 'Low Battery', 'Signal Lost', 'Last Call', 'Dead Air', 'Zero Hour', 'Last Stand'],
 ];
 
 /* ------------------------------------------------------------ generator */
@@ -301,8 +314,9 @@ function genRoom(seed, d, opts = {}) {
   const R = mulberry32(seed * 7919 + 17);
   const ri = (a, b) => a + Math.floor(R() * (b - a + 1));
   const ch = p => R() < p;
+  const st = STYLES[opts.style || 0];
   const cols = opts.boss ? ri(44, 52) : ri(32, 46);
-  const H = ri(5, 7);                 // interior rows at base level
+  const H = ri(st.H[0], st.H[1]);     // interior rows at base level
   const base = H + 1;                 // floor row (first solid row) at base level
   const rows = base + 1;
   const f = new Array(cols).fill(base);
@@ -318,7 +332,7 @@ function genRoom(seed, d, opts = {}) {
     else if (r < 0.4 && fl < base) { fl++; f[x] = fl; c[x] = ce; x++; len = ri(3, 6); }
     else if (r < 0.5 && fl - (ce + 1) >= 5) { ce++; }
     else if (r < 0.58 && ce > 0) { ce--; }
-    else if (r < 0.66 && slideOk && d > 0.12) {
+    else if (r < 0.58 + st.slide && slideOk && d > 0.12) {
       const sl = ri(3, 5);
       for (let i = 0; i < sl && x < cols - 9; i++, x++) { f[x] = fl; c[x] = fl - 2; }
       continue;
@@ -362,7 +376,7 @@ function genRoom(seed, d, opts = {}) {
   // ledges over tall flat runs
   const ledges = [];
   for (let i = 9; i < cols - 10; i++) {
-    if (f[i] - c[i] < 7 || !ch(0.12)) continue;
+    if (f[i] - c[i] < 7 || !ch(st.ledge)) continue;
     const len = ri(3, 6), r = f[i] - 3;
     let ok = true;
     for (let k = 0; k < len; k++) if (f[i + k] !== f[i] || c[i + k] >= r - 3 || at(i + k, r) !== '.') ok = false;
@@ -373,7 +387,7 @@ function genRoom(seed, d, opts = {}) {
   }
 
   // enemies
-  const n = clamp(Math.round(1 + d * 3.4 + R() * 1.6 + (opts.boss ? 1 : 0)), 1, 7);
+  const n = clamp(Math.round(1.4 + d * 4.4 + R() * 1.6 + (opts.boss ? 1 : 0) + st.extra * d), 1, 9);
   const pool = ['grunt'];
   if (d > 0.15) pool.push('smg');
   if (d > 0.25) pool.push('shotgun', 'grunt');
@@ -401,12 +415,12 @@ function genRoom(seed, d, opts = {}) {
     // cover or a barrel beside some of them
     if (p[1] === f[p[0]] - 1) {
       if (ch(0.32) && free(p[0] - 2, p[1]) && flatAt(p[0] - 2) && roomy(p[0] - 2)) mark(p[0] - 2, p[1], 'X');
-      else if (ch(0.22) && free(p[0] + 1, p[1]) && flatAt(p[0] + 1)) mark(p[0] + 1, p[1], 'O');
+      else if (ch(st.barrel) && free(p[0] + 1, p[1]) && flatAt(p[0] + 1)) mark(p[0] + 1, p[1], 'O');
     }
   }
 
-  // a glass pane in a low section
-  if (ch(0.4)) {
+  // glass panes in low sections (offices and towers are full of them)
+  for (let pane = 0; pane < (st.glass > 0.7 ? 2 : 1); pane++) if (ch(st.glass)) {
     for (let tries = 0; tries < 20; tries++) {
       const i = ri(8, cols - 8);
       if (!flatAt(i) || f[i] - c[i] > 7) continue;
@@ -418,14 +432,15 @@ function genRoom(seed, d, opts = {}) {
     }
   }
   // furniture
-  const furn = ['T', 'B', 'C', 'L', 'C', 'X'];
+  const furn = st.furn;
   for (let tries = 0; tries < 30; tries++) {
     const i = ri(5, cols - 6), r = f[i] - 1;
     const kind = furn[Math.floor(R() * furn.length)];
-    const w = kind === 'T' ? 3 : kind === 'B' || kind === 'L' ? 2 : 1;
+    const w = kind === 'T' ? 3 : kind === 'B' || kind === 'L' || kind === 'u' ? 2 : 1;
     let ok = true;
     for (let k = -1; k <= w; k++) if (!flatAt(i + k) || f[i + k] !== f[i] || !free(i + k, r)) ok = false;
-    if (kind === 'L' && !free(i, r - 1)) ok = false;
+    if ((kind === 'L' || kind === 'v') && !free(i, r - 1)) ok = false;
+    if (kind === 'v' && f[i] - c[i] < 5) ok = false;
     if (kind === 'X' && !roomy(i)) ok = false;
     if (!ok) continue;
     mark(i, r, kind);
@@ -445,36 +460,42 @@ function countEnemies(map) {
   return n;
 }
 
+// Campaign difficulty: climbs steadily across all 75 levels, with a small bump at each boss level.
+const levelDiff = i => clamp(0.16 + i / 64 + ((i + 1) % BOSS_EVERY === 0 ? 0.05 : 0), 0, 1);
+
 function getLevel(i) {
   if (levelCache.has(i)) return levelCache.get(i);
   const chapter = Math.floor(i / LEVELS_PER_CHAPTER);
+  const inCh = i % LEVELS_PER_CHAPTER;
+  const boss = (inCh + 1) % BOSS_EVERY === 0;
   let L;
   if (i < HAND_LEVELS.length) {
     const h = HAND_LEVELS[i];
-    L = { name: h.name, rooms: h.rooms, par: h.par };
+    L = { name: h.name, rooms: h.rooms, par: h.par, hand: true };
   } else {
-    const k = i - HAND_LEVELS.length;
-    const boss = (i + 1) % LEVELS_PER_CHAPTER === 0;
-    const d = clamp(0.22 + k * 0.034, 0, 1);
+    const d = levelDiff(i);
     const nRooms = boss ? 4 : 3;
     const rooms = [];
-    for (let r = 0; r < nRooms; r++) rooms.push(genRoom(1000 + i * 31 + r * 7, clamp(d + r * 0.04, 0, 1), { boss: boss && r === nRooms - 1 }));
+    for (let r = 0; r < nRooms; r++) rooms.push(genRoom(1000 + i * 31 + r * 7, clamp(d + r * 0.03, 0, 1), { boss: boss && r === nRooms - 1, style: chapter }));
     let par = 0;
-    for (const rm of rooms) par += rm.map[0].length * 0.42 + countEnemies(rm.map) * 2.6 + 2;
-    L = { name: GEN_NAMES[k % GEN_NAMES.length], rooms, par: Math.round(par / 5) * 5 };
+    for (const rm of rooms) par += rm.map[0].length * 0.45 + countEnemies(rm.map) * 3 + 2;
+    const names = GEN_NAMES[chapter];
+    const k = chapter === 0 ? inCh - HAND_LEVELS.length : inCh;
+    L = { name: names[k % names.length], rooms, par: Math.round(par / 5) * 5 };
   }
   L.index = i;
   L.chapter = chapter;
   L.theme = CHAPTERS[chapter].theme;
-  L.boss = (i + 1) % LEVELS_PER_CHAPTER === 0;
+  L.boss = L.hand ? L.rooms.some(r => r.map.some(row => row.includes('h'))) : boss;
   levelCache.set(i, L);
   return L;
 }
 
 // Endless: room n of a run. Difficulty climbs every room; themes rotate every 4 rooms.
 function endlessRoom(runSeed, n) {
-  const d = clamp(0.18 + n * 0.055, 0, 1);
-  const room = genRoom(runSeed + n * 101, d, { boss: n > 0 && n % 6 === 5 });
-  room.theme = Math.floor(n / 4) % THEMES.length;
+  const d = clamp(0.25 + n * 0.06, 0, 1);
+  const t = Math.floor(n / 4) % THEMES.length;
+  const room = genRoom(runSeed + n * 101, d, { boss: n > 0 && n % 6 === 5, style: t });
+  room.theme = t;
   return room;
 }

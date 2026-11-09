@@ -71,7 +71,7 @@ const UI = (() => {
   /* -------------------------------------------------------------- home */
   function renderHome() {
     if (Game.mode !== 'menu') Game.startMenu();
-    requestAnimationFrame(() => { const r = $('home').querySelector('.home-panel').getBoundingClientRect(); Game.setMenuInset(r.right); });
+    requestAnimationFrame(() => { const r = $('home').querySelector('.home-panel').getBoundingClientRect(); Game.setMenuInset(r.right + Math.min(320, window.innerWidth * 0.2)); });
     const d = S();
     document.querySelectorAll('.coin-val').forEach(e => { e.textContent = fmt(d.coins); });
     $('homeStars').textContent = Save.totalStars();
@@ -157,9 +157,9 @@ const UI = (() => {
       const dmg = (it.pellets || 1) * (1 + (it.pierce || 0) * 0.5);
       stats = `<div class="stats">
         <span>POWER</span><i style="--v:${Math.min(100, dmg / 6 * 100)}%"></i>
-        <span>FIRE RATE</span><i style="--v:${Math.min(100, (0.6 - it.rate) / 0.55 * 100)}%"></i>
-        <span>MAGAZINE</span><i style="--v:${Math.min(100, it.mag / 26 * 100)}%"></i>
-        <span>RELOAD</span><i style="--v:${Math.min(100, (1.4 - it.reload) / 0.7 * 100)}%"></i>
+        <span>FIRE RATE</span><i style="--v:${clamp((1.1 - it.rate / (it.burst ? it.burst : 1)) / 1.05 * 100, 4, 100)}%"></i>
+        <span>MAGAZINE</span><i style="--v:${Math.min(100, it.mag / 30 * 100)}%"></i>
+        <span>RELOAD</span><i style="--v:${clamp((2.6 - it.reload) / 1.6 * 100, 4, 100)}%"></i>
       </div>`;
     }
     let btn;
@@ -186,7 +186,7 @@ const UI = (() => {
     const b = o.body || new Body({ x: 0, y: 0, color: skin.body, dark: skin.dark, shine: skin.shine, rainbow: skin.rainbow, hat: o.hat });
     b.color = skin.body; b.dark = skin.dark; b.shine = skin.shine; b.rainbow = skin.rainbow; b.hat = o.hat;
     b.gunId = o.weapon; b.dual = !!(WEAPON[o.weapon] || {}).dual;
-    b.pose({ x: 0, y: 0, facing: 1, aim: o.aim != null ? o.aim : -0.05 + Math.sin(t * 1.3) * 0.06, vx: 0, vy: 0, grounded: true, gun: !!o.weapon, twoHand: ['smg', 'shotgun', 'rifle'].includes(o.weapon), dual: b.dual }, 1 / 60);
+    b.pose({ x: 0, y: 0, facing: 1, aim: o.aim != null ? o.aim : -0.05 + Math.sin(t * 1.3) * 0.06, vx: 0, vy: 0, grounded: true, gun: !!o.weapon, twoHand: TWO_HAND.has(o.weapon), dual: b.dual }, 1 / 60);
     ctx.fillStyle = 'rgba(40,40,60,0.12)';
     ctx.beginPath(); ctx.ellipse(0, 0, 26, 5, 0, 0, TAU); ctx.fill();
     b.draw(ctx);
@@ -207,7 +207,7 @@ const UI = (() => {
     } else if (tab === 'skin') {
       drawFigure(ctx, cv.width / 2, cv.height - 10, 1.15, { skin: id, hat: S().hat, weapon: null, aim: 0 });
     } else {
-      drawFigure(ctx, cv.width / 2 - 2, cv.height + 190, 2.6, { skin: S().skin, hat: id, weapon: null, aim: 0 });
+      drawFigure(ctx, cv.width / 2 - 2, 76 + 91 * 3.2, 3.2, { skin: S().skin, hat: id, weapon: null, aim: 0 });
     }
   }
   function renderPreview(t) {
@@ -440,7 +440,7 @@ const UI = (() => {
         <button class="btn" id="pSettings"><b>SETTINGS</b></button>
         <button class="btn" id="pQuit"><b>QUIT</b></button>
       </div>
-      ${controlsHtml()}`);
+`);
     $('pResume').onclick = () => { click(); resume(); };
     if ($('pRoom')) $('pRoom').onclick = () => { click(); resume(); Game.restartRoom(); };
     if ($('pLevel')) $('pLevel').onclick = () => { click(); play(Game.levelIdx); };
@@ -454,21 +454,6 @@ const UI = (() => {
     Sfx.setMusicPaused(false);
     if (Game.state === 'play' || Game.state === 'dead') Platform.gameplayStart();
   }
-  function controlsHtml() {
-    if (document.body.classList.contains('touch')) return '';
-    return `<div class="controls">
-      <span><kbd>A</kbd><kbd>D</kbd></span><span>Move</span>
-      <span><kbd>SHIFT</kbd></span><span>Sprint (jump while sprinting to flip)</span>
-      <span><kbd>SPACE</kbd></span><span>Jump</span>
-      <span><kbd>RMB</kbd><kbd>S</kbd></span><span>Slide (stand still on a ledge to drop)</span>
-      <span><kbd>CLICK</kbd></span><span>Shoot</span>
-      <span><kbd>Q</kbd></span><span>Slow time</span>
-      <span><kbd>R</kbd></span><span>Reload</span>
-      <span><kbd>E</kbd></span><span>Grab a dropped gun</span>
-      <span><kbd>P</kbd></span><span>Pause</span>
-    </div>`;
-  }
-
   function openSettings(fromPause) {
     const st = S().settings;
     const row = (k, icon, label) => `<div class="row"><span><span class="ic" data-icon="${icon}"></span>${label}</span><button class="toggle ${st[k] ? 'on' : ''}" data-k="${k}"></button></div>`;

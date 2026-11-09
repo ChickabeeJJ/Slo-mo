@@ -8,11 +8,31 @@ To play, serve the folder (for example `python3 -m http.server`) and open `index
 
 ## The game
 
-- **Rooms and doors.** A level is a chain of 3–4 rooms. Each exit door has a lamp: red while anyone in the room is alive, green once it's clear. Walk into an open door to go to the next room. Dying restarts the room, not the level.
+- **Rooms and doors.** A level is a chain of 3–4 rooms. Each exit door has a lamp: red while anyone in the room is alive, with an "N LEFT" counter when you get close. Once the room is clear the lamp turns green, an EXIT sign pulses, and the door swings open as you approach. Anywhere across the door frame counts, even mid-jump. Dying restarts the room, not the level.
 - **Slow motion.** **Q** toggles bullet time. It drains a meter, and every kill refills some of it. The world drops to about a quarter speed while you keep about two thirds, so you can out-run bullets. The mix goes muffled, the music's tempo drags and a heartbeat plays. Slow motion also kicks in on its own for close calls, glass breaking, explosions and the **kill cam** on the last enemy in a room.
 - **Movement.** Sprint (**Shift**), jump (**Space**), slide (**right click**/**S**). Sliding lowers your hitbox under chest-high bullets and gets you through low vents. Jumping while sprinting does a **front flip**. Sprinting, sliding or jumping into glass shatters it. Walking into crates kicks them. To drop through a ledge or table, stand still on it and press slide.
-- **Gunplay.** Every bullet is a visible projectile. Enemy shots are dark slugs with a white wake, and every gunman shows a red sight line before firing, so you can always read a shot. You can **shoot bullets out of the air**. Enemies drop their guns: press **E** to grab one. A grabbed gun has a fixed magazine and gets tossed when it's empty. Enemy bullets can hit other enemies.
+- **Gunplay.** Every bullet is a visible projectile. Player rounds from every gun fly at the same slow speed (900 px/s), so you have to lead your shots, and fire rates are deliberately slow. Enemy shots are dark slugs with a white wake, and every gunman shows a red sight line before firing, so you can always read a shot. You can **shoot bullets out of the air**. Enemies drop their guns: press **E** to grab one. A grabbed gun has a fixed magazine and gets tossed when it's empty. Enemy bullets can hit other enemies.
 - **Style.** Each kill is worth 100, plus bonuses for HEADSHOT, AIRBORNE, FLIP KILL, SLIDE KILL, PIERCE, BOOM, CROSSFIRE and MULTI KILL. DEFLECT also scores. Chained kills build a combo multiplier, up to x4.
+
+## Weapons
+
+| Weapon | Gimmick |
+| --- | --- |
+| Pistol | Reliable, fast reload |
+| Hand Cannon | Rounds pass through 3 bodies |
+| SMG | Hold to spray |
+| Burst Rifle | Three-round burst per click |
+| Shotgun | Six-pellet spread |
+| Ricochet | Rounds bounce off walls 3 times |
+| Splitter | Each round splits into three mid-flight |
+| Twin Pistols | Alternating hands, fast clicks |
+| Seeker | Rounds curve toward the nearest enemy |
+| Battle Rifle | Full auto, pierces once |
+| Launcher | Arcing grenades that explode on impact (the splash can get you too) |
+| Minigun | Spins up before firing, slows you while it fires |
+| Railgun | Hold to charge, release to fire through walls and every body |
+
+Shot barrels fizz and flash for a moment before exploding, and explosions chain into nearby barrels.
 
 ## Enemies
 
@@ -29,9 +49,15 @@ Lowercase map chars face the player's side. UPPERCASE ones face away until they 
 
 ## Progression and retention
 
-- **Campaign:** 30 levels across 5 chapters (Orientation, Offices, Warehouse, Highrise, After Hours). Each chapter has its own palette, and After Hours is a dark, lamp-lit theme. Every 6th level is a boss level with a Juggernaut. Stars: **cleared**, **under par time**, **no deaths**.
+- **Campaign:** 75 levels, 15 in each of 5 chapters. Every 5th level is a boss level with a Juggernaut. Stars: **cleared**, **under par time**, **no deaths**. Each chapter builds its rooms differently:
+  - **Orientation:** white lab rooms, wall vents, the tutorial.
+  - **Offices:** warm walls, desks with monitors, plants, water coolers, windows with blinds, posters, clocks and lots of glass partitions.
+  - **Warehouse:** tall concrete halls, catwalks, pallet stacks, crates, barrels, roller shutters, stencilled bay numbers, hazard stripes and pipes.
+  - **Highrise:** pale blue rooms with big windows onto a city skyline, glass everywhere, sloped ceilings.
+  - **After Hours:** dark rooms lit by lamp cones, neon signs, blinking server racks, more vents to slide through, more enemies.
+- **Difficulty:** climbs steadily across all 75 levels and through every Endless run. Enemies react sooner, telegraph for less time, turn faster, fire more often, aim tighter and shoot faster rounds, and rooms hold more of them (up to 9). Every enemy still shows its red sight line before firing.
 - **Endless:** unlocks after level 3. It generates rooms forever, gets harder every room, rotates themes every 4 rooms and adds a Juggernaut every 6th room. It tracks your best score. You can revive once per run with a rewarded ad.
-- **Armory:** 6 weapons (Pistol, Hand Cannon, SMG, Shotgun, Twin Pistols, Battle Rifle), 9 colours and 8 hats bought with coins. Prism and Halo unlock with stars.
+- **Armory:** 13 weapons, 9 colours and 13 hats (Headband, Beanie, Cap, Party Hat, Shades, Headphones, Visor, Cowboy, Top Hat, Horns, Crown, Halo), bought with coins. Prism (120 stars) and Halo (60 stars) unlock with stars.
 - **Daily missions:** three a day from a pool of 12, with a 250-coin bonus for finishing all three.
 - **Daily login reward:** a 7-day streak that pays 50 → 400 coins and resets if you miss a day.
 - **Coins:** from clears (stars, style and a first-clear bonus), Endless runs and missions.

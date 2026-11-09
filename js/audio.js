@@ -78,8 +78,17 @@ const Sfx = (() => {
       case 'rifle':
         noise(0.2, 0.55, 3600, 'lowpass', 1, 0, 0.2); tone(90, 0.16, 'sine', 0.42, 0.5); noise(0.04, 0.35, 7000, 'highpass');
         break;
-      case 'smg':
+      case 'smg': case 'minigun':
         noise(0.12, 0.42, 3200, 'lowpass', 1, 0, 0.3); tone(120, 0.08, 'sine', 0.3, 0.5); noise(0.03, 0.25, 7000, 'highpass');
+        break;
+      case 'launcher':
+        noise(0.3, 0.5, 700, 'lowpass', 0.8, 0, 0.3); tone(90, 0.25, 'sine', 0.5, 0.5); tone(300, 0.12, 'triangle', 0.08, 0.5, 0.02);
+        break;
+      case 'railgun':
+        tone(1800, 0.4, 'sawtooth', 0.09, 0.15); noise(0.4, 0.6, 5000, 'bandpass', 0.7, 0, 0.1); tone(55, 0.5, 'sine', 0.6, 0.5);
+        break;
+      case 'bouncer': case 'smart': case 'splitter':
+        noise(0.17, 0.5, 2600, 'lowpass', 0.9, 0, 0.2); tone(140, 0.12, 'sine', 0.38, 0.45); tone(id === 'smart' ? 1400 : 900, 0.1, 'triangle', 0.05, 0.6);
         break;
       default:
         noise(0.17, 0.55, 3000, 'lowpass', 0.9, 0, 0.2); tone(105, 0.13, 'sine', 0.42, 0.45); noise(0.04, 0.3, 6500, 'highpass');
@@ -98,6 +107,10 @@ const Sfx = (() => {
   function ricochet() { if (!ensure()) return; tone(rand(1800, 2600), 0.22, 'sine', 0.05, 0.55); noise(0.05, 0.16, 3000, 'bandpass', 2); }
   function wallHit() { if (!ensure()) return; noise(0.07, 0.2, 1400, 'bandpass', 1.5); tone(rand(160, 220), 0.05, 'triangle', 0.08, 0.6); }
   function deflect() { if (!ensure()) return; tone(2400, 0.32, 'triangle', 0.12, 0.92); tone(3600, 0.2, 'sine', 0.06, 0.9, 0.02); noise(0.06, 0.25, 6000, 'highpass'); }
+  function spin(k) { if (!ensure()) return; tone(180 + k * 700, 0.09, 'sawtooth', 0.03, 1.2); }
+  function charged() { if (!ensure()) return; tone(1500, 0.25, 'sine', 0.1, 1.3); tone(2250, 0.2, 'sine', 0.06, 1.2, 0.03); }
+  function split() { if (!ensure()) return; tone(2200, 0.06, 'square', 0.03, 0.6); }
+  function fuse() { if (!ensure()) return; noise(0.35, 0.22, 4000, 'highpass', 0.8); tone(900, 0.3, 'square', 0.03, 1.8); }
   function laser() { if (!ensure()) return; tone(880, 0.25, 'sine', 0.03, 1.6); }
 
   /* ------------------------------------------------------------ bodies */
@@ -215,7 +228,7 @@ const Sfx = (() => {
   function suspend(s) { if (ac) s ? ac.suspend() : ac.resume(); }
 
   return {
-    ensure, shot, enemyShot, dry, reload, shell, whiz, ricochet, wallHit, deflect, laser, hit, armor, crumble, thud, hurtPlayer, swing,
+    ensure, shot, enemyShot, spin, charged, split, fuse, dry, reload, shell, whiz, ricochet, wallHit, deflect, laser, hit, armor, crumble, thud, hurtPlayer, swing,
     glass, boom, crate, step, jump, land, slide, flip, slowIn, slowOut, heartbeat, door, clear, click, coin, star, combo, win, lose,
     unlock, denied, setTime, setIntensity, setSfx, setMusic, setMusicPaused, setAdMuted, setPlatformMute, suspend,
   };

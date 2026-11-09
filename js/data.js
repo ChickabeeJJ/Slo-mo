@@ -4,14 +4,25 @@
    ========================================================================= */
 
 // Player weapons. mag: rounds per magazine, rate: seconds between shots (player time),
-// speed: bullet px/s, pierce: extra bodies a bullet passes through, pellets/spread for shotguns.
+// pierce: extra bodies a round passes through, pellets/spread for shotguns. Gimmicks: burst, bounce,
+// split, homing, gravity + blast (grenades), spinup (minigun), charge + wallPierce (railgun).
+// Every player round flies at the same slow, readable speed (like the original demo), so
+// shots have to be led. rate: seconds between shots in player time.
+const BULLET_SPEED = 900;
 const WEAPONS = [
-  { id: 'pistol', name: 'Pistol', price: 0, mag: 9, rate: 0.17, reload: 0.85, speed: 2100, spread: 0.012, pierce: 0, auto: false, len: 16, desc: 'Reliable. Fast reload.' },
-  { id: 'revolver', name: 'Hand Cannon', price: 350, mag: 6, rate: 0.36, reload: 1.05, speed: 2900, spread: 0, pierce: 2, auto: false, len: 20, kick: 1.8, desc: 'Every round passes through 3 bodies.' },
-  { id: 'smg', name: 'SMG', price: 700, mag: 26, rate: 0.072, reload: 1.1, speed: 2000, spread: 0.06, pierce: 0, auto: true, len: 20, desc: 'Hold to spray.' },
-  { id: 'shotgun', name: 'Shotgun', price: 1000, mag: 5, rate: 0.55, reload: 1.15, speed: 1750, spread: 0.2, pellets: 6, life: 0.32, pierce: 0, auto: false, len: 26, kick: 2.4, desc: 'Six pellets. Point blank is lethal.' },
-  { id: 'dual', name: 'Twin Pistols', price: 1400, mag: 18, rate: 0.1, reload: 1.0, speed: 2100, spread: 0.02, pierce: 0, auto: false, dual: true, len: 16, desc: 'One in each hand. Click fast.' },
-  { id: 'rifle', name: 'Battle Rifle', price: 1900, mag: 20, rate: 0.12, reload: 1.2, speed: 2800, spread: 0.018, pierce: 1, auto: true, len: 30, desc: 'Full auto, rounds pierce once.' },
+  { id: 'pistol', name: 'Pistol', price: 0, mag: 9, rate: 0.34, reload: 1.1, spread: 0.012, len: 16, desc: 'Reliable. Fast reload.' },
+  { id: 'revolver', name: 'Hand Cannon', price: 350, mag: 6, rate: 0.7, reload: 1.4, spread: 0, pierce: 2, len: 20, kick: 1.8, big: true, desc: 'Every round passes through 3 bodies.' },
+  { id: 'smg', name: 'SMG', price: 700, mag: 26, rate: 0.13, reload: 1.4, spread: 0.06, auto: true, len: 20, desc: 'Hold to spray.' },
+  { id: 'burst', name: 'Burst Rifle', price: 850, mag: 21, rate: 0.75, reload: 1.5, spread: 0.02, burst: 3, burstGap: 0.08, len: 26, desc: 'Three-round burst on every click.' },
+  { id: 'shotgun', name: 'Shotgun', price: 1000, mag: 5, rate: 1.0, reload: 1.5, spread: 0.2, pellets: 6, life: 0.7, len: 26, kick: 2.4, big: true, desc: 'Six pellets. Point blank is lethal.' },
+  { id: 'bouncer', name: 'Ricochet', price: 1150, mag: 8, rate: 0.5, reload: 1.3, spread: 0.01, bounce: 3, life: 3.5, len: 18, desc: 'Rounds bounce off walls 3 times. Bank your shots.' },
+  { id: 'splitter', name: 'Splitter', price: 1300, mag: 7, rate: 0.6, reload: 1.4, spread: 0.01, split: { t: 0.24, n: 2, a: 0.22 }, len: 20, desc: 'Each round splits into three mid-flight.' },
+  { id: 'dual', name: 'Twin Pistols', price: 1400, mag: 18, rate: 0.2, reload: 1.3, spread: 0.02, dual: true, len: 16, desc: 'One in each hand. Click fast.' },
+  { id: 'smart', name: 'Seeker', price: 1650, mag: 10, rate: 0.45, reload: 1.3, spread: 0.02, homing: 3.2, life: 3, len: 18, desc: 'Rounds curve toward the nearest enemy.' },
+  { id: 'rifle', name: 'Battle Rifle', price: 1900, mag: 20, rate: 0.22, reload: 1.6, spread: 0.018, pierce: 1, auto: true, len: 30, desc: 'Full auto, rounds pierce once.' },
+  { id: 'launcher', name: 'Launcher', price: 2200, mag: 4, rate: 1.0, reload: 2.0, spread: 0, gravity: 900, speedK: 0.85, blast: 115, len: 28, kick: 2.2, big: true, desc: 'Arcing grenades that blow on impact. Mind the splash.' },
+  { id: 'minigun', name: 'Minigun', price: 2600, mag: 90, rate: 0.065, reload: 2.4, spread: 0.08, auto: true, spinup: 0.7, heavy: true, len: 30, desc: 'Spins up, then shreds. You move slowly while firing.' },
+  { id: 'railgun', name: 'Railgun', price: 3200, mag: 3, rate: 0.5, reload: 2.0, spread: 0, charge: 0.75, pierce: 99, wallPierce: true, len: 34, kick: 3, big: true, desc: 'Hold to charge, release to fire through walls and everyone.' },
 ];
 const WEAPON = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 
@@ -37,19 +48,24 @@ const SKINS = [
   { id: 'coral', name: 'Coral', price: 900, body: '#ff9a76', dark: '#de7553' },
   { id: 'chrome', name: 'Chrome', price: 1500, body: '#d7dde6', dark: '#9aa4b4', shine: true },
   { id: 'gold', name: 'Gold', price: 2500, body: '#ffd34d', dark: '#d9a520', shine: true },
-  { id: 'prism', name: 'Prism', price: 0, body: '#8fd0ff', dark: '#6aa0e0', rainbow: true, stars: 75 },
+  { id: 'prism', name: 'Prism', price: 0, body: '#8fd0ff', dark: '#6aa0e0', rainbow: true, stars: 120 },
 ];
 const SKIN = Object.fromEntries(SKINS.map(s => [s.id, s]));
 
 const HATS = [
   { id: 'none', name: 'None', price: 0 },
   { id: 'band', name: 'Headband', price: 200 },
+  { id: 'beanie', name: 'Beanie', price: 300 },
   { id: 'cap', name: 'Cap', price: 350 },
+  { id: 'party', name: 'Party Hat', price: 450 },
   { id: 'shades', name: 'Shades', price: 500 },
+  { id: 'phones', name: 'Headphones', price: 650 },
   { id: 'visor', name: 'Visor', price: 800 },
+  { id: 'cowboy', name: 'Cowboy', price: 950 },
   { id: 'tophat', name: 'Top Hat', price: 1100 },
+  { id: 'horns', name: 'Horns', price: 1300 },
   { id: 'crown', name: 'Crown', price: 2000 },
-  { id: 'halo', name: 'Halo', price: 0, stars: 45 },
+  { id: 'halo', name: 'Halo', price: 0, stars: 60 },
 ];
 const HAT = Object.fromEntries(HATS.map(h => [h.id, h]));
 
@@ -81,3 +97,4 @@ const STYLE = {
   last: { label: 'CLEAN', pts: 0 },
   close: { label: 'CLOSE CALL', pts: 40 },
 };
+const TWO_HAND = new Set(['smg', 'burst', 'shotgun', 'rifle', 'launcher', 'minigun', 'railgun']);
