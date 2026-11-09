@@ -9,7 +9,8 @@ const Game = (() => {
   const G = 2500, WALK = 250, SPRINT = 425, ACC_G = 3200, ACC_A = 1800, JUMP_V = 840;
   const SLIDE_V = 610, SLIDE_T = 0.55, STAND_H = 92, SLIDE_H = 28;
   const SLOW_SCALE = 0.26;
-  const RETRY_DELAY = 0.9;         // seconds after dying before a click/tap/key restarts the room
+  const RETRY_DELAY = 0.9;
+  const FLIP_CHAIN = 3;            // back-to-back flips allowed before you have to touch down properly         // seconds after dying before a click/tap/key restarts the room
 
   let canvas, ctx, dpr = 1, sw = 0, sh = 0;
   const cam = { x: 0, y: 0, zoom: 1, shake: 0, kick: 0, kx: 0, ky: 0, focus: null, focusT: 0 };
@@ -558,11 +559,20 @@ const Game = (() => {
       if (p.slideT > 0) { p.vx *= 1.05; p.slideT = 0; }
       p.h = STAND_H;
       p.grounded = false;
-      // jump while sprinting or sliding (moving fast) = front flip
-      if (Math.abs(p.vx) > 320) {
+      // jump while sprinting or sliding (moving fast) = front flip. Flips can be chained by
+      // jumping again right as you land, up to FLIP_CHAIN in a row; a kill during a flip earns
+      // another one, and half a second on the ground resets the chain.
+      const chained = (p.groundT || 0) < 0.3 && (p.flipChain || 0) > 0;
+      if (!chained) p.flipChain = 0;
+      if (Math.abs(p.vx) > 320 && p.flipChain < FLIP_CHAIN) {
         p.flipping = true; p.flip = 0; p.flipDir = Math.sign(p.vx) * p.facing;
+        p.flipChain++;
+        if (p.flipChain > 1) Fx.text(p.x, p.y - 120, 'FLIP x' + p.flipChain, '#1d2130', 14);
         Sfx.flip();
-      } else Sfx.jump();
+      } else {
+        if (Math.abs(p.vx) > 320) { p.vx *= 0.85; Fx.text(p.x, p.y - 120, 'OUT OF FLIPS', '#e2434b', 13); }
+        Sfx.jump();
+      }
       Fx.dust(p.x, p.y, 5);
     }
 
@@ -591,7 +601,7 @@ const Game = (() => {
       if (fallV > 500) Fx.dust(p.x, p.y, 8);
       if (p.flipping) { p.flipping = false; p.flip = 0; }
     }
-    if (!p.grounded) p.airT += dt; else p.airT = 0;
+    if (!p.grounded) { p.airT += dt; p.groundT = 0; } else { p.airT = 0; p.groundT = (p.groundT || 0) + dt; if (p.groundT > 0.5) p.flipChain = 0; }
     unstick(p, dt);
     if (p.flipping) {
       p.flip += dt * 12.5;
@@ -1268,7 +1278,7 @@ const Game = (() => {
     if (info.head) { tags.push(STYLE.headshot.label); pts += STYLE.headshot.pts; track('headshots'); run.headshots++; }
     if (info.boom) { tags.push(STYLE.boom.label); pts += STYLE.boom.pts; track('boomKills'); }
     if (!info.boom && !info.crossfire && p.alive) {
-      if (p.flipping) { tags.push(STYLE.flip.label); pts += STYLE.flip.pts; track('flipKills'); }
+      if (p.flipping) { tags.push(STYLE.flip.label); pts += STYLE.flip.pts; track('flipKills'); p.flipChain = Math.max(0, (p.flipChain || 0) - 1); }
       else if (!p.grounded) { tags.push(STYLE.air.label); pts += STYLE.air.pts; track('airKills'); }
       if (p.slideT > 0 || p.crawl) { tags.push(STYLE.slide.label); pts += STYLE.slide.pts; track('slideKills'); }
     }

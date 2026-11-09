@@ -10,7 +10,7 @@
   Platform.loadingStart();
   Save.load();
   if (matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches) document.body.classList.add('touch');
-  try { await Promise.all([document.fonts.load('900 20px Rubik'), document.fonts.load('500 20px Rubik')]); } catch (e) { /* fonts are optional */ }
+  try { await Promise.all([document.fonts.load('900 20px Rubik'), document.fonts.load('500 20px Rubik'), document.fonts.load('300 20px Exo2')]); } catch (e) { /* fonts are optional */ }
   Game.init(canvas);
   Platform.loadingStop();
   UI.init();

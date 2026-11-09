@@ -579,13 +579,15 @@ class Room {
     if (this.texts.length) {
       const k = View.k(0.985);
       ctx.fillStyle = th.text; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = 'italic 900 ' + (21 * k).toFixed(1) + 'px Rubik, sans-serif';
+      // painted wall text: a thin, rounded sans (Exo 2 Light), sentence case
+      ctx.font = '300 ' + (25 * k).toFixed(1) + 'px Exo2, Rubik, sans-serif';
+      ctx.fillStyle = th.dark ? '#8f97ab' : shade(th.text, -0.28);
       const touch = document.body.classList.contains('touch');
       for (const T of this.texts) {
         const str = (TUTORIAL_TEXT[T.k] || [T.k])[touch ? 1 : 0] || T.k;
-        const lines = str.toUpperCase().split('\n');
+        const lines = str.split('\n');
         const [x, y] = P(T.x, T.y, 0.985);
-        lines.forEach((ln, i) => ctx.fillText(ln, x, y + (i - (lines.length - 1) / 2) * 25 * k));
+        lines.forEach((ln, i) => ctx.fillText(ln, x, y + (i - (lines.length - 1) / 2) * 29 * k));
       }
     }
 

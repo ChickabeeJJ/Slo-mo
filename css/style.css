@@ -4,6 +4,7 @@
    keycaps for controls. Rubik throughout.
    ========================================================================= */
 
+@font-face { font-family: 'Exo2'; src: url('../assets/fonts/exo2-light.woff2') format('woff2'); font-weight: 300; font-display: swap; }
 @font-face { font-family: 'Rubik'; src: url('../assets/fonts/rubik.woff2') format('woff2'); font-weight: 300 900; font-display: swap; }
 
 :root {

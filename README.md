@@ -127,4 +127,4 @@ crazygames/       listing text and 3 covers
 
 ## Credits
 
-Font: [Rubik](https://fonts.google.com/specimen/Rubik) by Hubert and Fischer, under the SIL Open Font License 1.1.
+Fonts: [Rubik](https://fonts.google.com/specimen/Rubik) by Hubert and Fischer, and [Exo 2](https://github.com/NDISCOVER/Exo-2.0) by The Exo 2 Project Authors (painted wall text), both under the SIL Open Font License 1.1.
