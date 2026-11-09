@@ -253,7 +253,9 @@ const Game = (() => {
       const spot = ambushSpot(a);
       a.state = spot ? 'done' : 'skip';
       if (!spot) { emit('ambushSkip'); continue; }
-      const e = makeEnemy(a.type, spot.s.x, spot.s.y, false);
+      // surprise enemies only ever carry light weapons: a pistol or a knife
+      const e = makeEnemy(a.type === 'knife' ? 'knife' : 'grunt', spot.s.x, spot.s.y, false);
+      e.surpriseT = 1.3;
       e.facing = player.x < e.x ? -1 : 1; e.aim = Math.atan2(player.y - 60 - (e.y - 74), player.x - e.x);
       e.alert = true; e.reactT = e.def.react * reactMul() + (spot.m === 'behind' ? 0.75 : 0.5);
       e.lastX = player.x; e.lastY = player.y - 58;
@@ -887,6 +889,7 @@ const Game = (() => {
     if (e.flinch > 0) e.flinch -= dt;
     if (e.body.flash > 0) e.body.flash -= dt * 4;
     if (e.body.alpha != null) { e.body.alpha += dt * 8; if (e.body.alpha >= 1) e.body.alpha = null; }
+    if (e.surpriseT > 0) e.surpriseT -= dt;
 
     let want = 0;
     if (e.alert && p.alive) {
@@ -1524,6 +1527,7 @@ const Game = (() => {
       if (e.def.brute && e.bstate === 'wind') Glow.draw(ctx, '#ff3344', e.x, e.y - 55, 70, 0.35 + 0.25 * Math.sin(clock * 30));
       e.body.draw(ctx);
       if (e.def.shield) drawShield(e);
+      if (e.surpriseT > 0) drawSurprise(e);
     }
     drawGrenades();
     drawGhosts();
@@ -1629,6 +1633,20 @@ const Game = (() => {
         if (ts < 0.6) Glow.draw(ctx, '#ff4f5e', b.x, b.y, 12, 0.35);
       }
     }
+  }
+  // a big, vibrant yellow "!" that pops above a surprise enemy for a moment
+  function drawSurprise(e) {
+    const k = 1 - e.surpriseT / 1.3;
+    const pop = k < 0.15 ? easeOutBack(k / 0.15) : 1;
+    const a = e.surpriseT < 0.3 ? e.surpriseT / 0.3 : 1;
+    const h = e.body.pts[J.HEAD];
+    const x = h.x, y = h.y - 34 - Math.sin(clock * 9) * 2;
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.scale(pop, pop);
+    Glow.draw(ctx, '#ffd400', 0, 0, 34, 0.75);
+    ctx.font = '900 40px Rubik, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round'; ctx.lineWidth = 7; ctx.strokeStyle = '#1d2130'; ctx.strokeText('!', 0, 0);
+    ctx.fillStyle = '#ffd400'; ctx.fillText('!', 0, 0);
+    ctx.restore();
   }
   function drawShield(e) {
     const f = e.facing, x = e.x + f * 18, y0 = e.y - 80 * e.s, y1 = e.y - 3;

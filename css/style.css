@@ -134,7 +134,6 @@ kbd { display: inline-block; font-family: var(--font); font-weight: 800; font-si
   clip-path: polygon(10px 0, calc(100% - 14px) 0, calc(100% - 2px) calc(100% - 10px), calc(100% - 10px) 100%, 14px 100%, 2px 10px);
 }
 .title .t2 i { display: inline-block; font-style: normal; transform: skewX(10deg); }   /* letters lean back, matching the slant */
-.tagline { font-weight: 800; font-size: 12px; letter-spacing: 0.22em; color: var(--muted); margin-top: -6px; }
 .home-menu { display: flex; flex-direction: column; gap: 8px; }
 .btn-row { display: flex; gap: 8px; }
 .btn-row .btn { flex: 1; min-width: 0; padding: 8px 6px; font-size: 13px; }
@@ -384,7 +383,6 @@ body.touch .tbtns { display: block; position: absolute; right: calc(20px + var(-
 body.touch .home-hint { display: none; }
 @media (max-height: 460px) {
   .home-panel { width: min(360px, 50vw); }
-  .tagline { display: none; }
   .btn-row .btn { font-size: 12px; }
   .btn.mode small { font-size: 10px; }
 }
