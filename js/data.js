@@ -97,6 +97,13 @@ const ARMOR = [
 ];
 const ARMOR_BY = Object.fromEntries(ARMOR.map(a => [a.id, a]));
 const ARMOR_ABILITY = { deflect: 'DEFLECT', focus: 'REFOCUS', blast: 'BLAST PROOF', swift: 'SWIFT', thorns: 'THORNS' };
+const ARMOR_ABILITY_TIP = {
+  deflect: 'A shot this piece blocks flies straight back at whoever fired it.',
+  focus: 'Every hit this piece blocks refills 30% of your slow-motion meter.',
+  blast: 'Survives one explosion per level without losing a hit (other armour can\'t stop explosions).',
+  swift: 'You move 7% faster while wearing it.',
+  thorns: 'A Blade that hits it is knocked down dead, and a Brute is stunned.',
+};
 
 const HAT = Object.fromEntries(HATS.map(h => [h.id, h]));
 

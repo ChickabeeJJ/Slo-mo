@@ -406,3 +406,11 @@ body.touch .home-hint { display: none; }
 .armorhud .ar i.on { background: #8fd0ff; }
 .armorhud .ar.gone b { color: #ff8a94; text-decoration: line-through; }
 body.touch .armorhud { bottom: auto; top: calc(66px + var(--safe-t)); transform: scale(0.9); transform-origin: left top; }
+
+/* hover (or tap) an ability name to see what it does */
+.stats em.ab { position: relative; cursor: help; text-decoration: underline dotted rgba(143, 208, 255, 0.6); text-underline-offset: 3px; }
+.stats em.ab:hover::after, .stats em.ab:focus::after {
+  content: attr(data-tip); position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 5; width: 210px;
+  padding: 9px 11px; border-radius: 6px; background: #0b0d13; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(143, 208, 255, 0.35);
+  font-weight: 700; font-size: 12px; line-height: 1.35; letter-spacing: 0.01em; color: var(--text); text-transform: none; white-space: normal;
+}

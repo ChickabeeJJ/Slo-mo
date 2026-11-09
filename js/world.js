@@ -123,8 +123,13 @@ class Room {
     if (cx < 0 || cy < 0 || cx >= this.sc || cy >= this.sr) return false;
     return !!this.inside[cy * this.sc + cx];
   }
+  ledgeAt(x, y) {
+    for (const p of this.platforms) if (p.kind === 'ledge' && x >= p.x1 && x <= p.x2 && y >= p.y && y <= p.y + p.th) return p;
+    return null;
+  }
   solidAt(x, y, panes) {
     if (this.collCell(Math.floor(x / SUB), Math.floor(y / SUB))) return true;
+    if (this.ledgeAt(x, y)) return true;
     if (panes) for (const g of panes) if (!g.broken && x >= g.x && x <= g.x + g.w && y >= g.y && y <= g.y + g.h) return g;
     return false;
   }
@@ -281,7 +286,10 @@ class Room {
   // line of sight (glass is see-through)
   los(x0, y0, x1, y1) {
     const len = Math.hypot(x1 - x0, y1 - y0), n = Math.ceil(len / 10);
-    for (let i = 1; i < n; i++) if (this.collCell(Math.floor(lerp(x0, x1, i / n) / SUB), Math.floor(lerp(y0, y1, i / n) / SUB))) return false;
+    for (let i = 1; i < n; i++) {
+      const x = lerp(x0, x1, i / n), y = lerp(y0, y1, i / n);
+      if (this.collCell(Math.floor(x / SUB), Math.floor(y / SUB)) || this.ledgeAt(x, y)) return false;
+    }
     return true;
   }
 

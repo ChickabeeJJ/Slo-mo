@@ -165,8 +165,8 @@ const UI = (() => {
       stats = `<div class="stats">
         <span>SLOT</span><em>${SLOT_NAME[it.slot]}</em>
         <span>DURABILITY</span><i style="--v:${it.hits / 4 * 100}%"></i>
-        <span>HITS / ROOM</span><em>${it.hits}</em>
-        ${it.ability ? `<span>ABILITY</span><em class="ab">${ARMOR_ABILITY[it.ability]}</em>` : ''}
+        <span>HITS / LEVEL</span><em>${it.hits}</em>
+        ${it.ability ? `<span>ABILITY</span><em class="ab" tabindex="0" data-tip="${ARMOR_ABILITY_TIP[it.ability]}">${ARMOR_ABILITY[it.ability]}</em>` : ''}
       </div>`;
     }
     if (armoryTab === 'weapon') {

@@ -113,11 +113,12 @@ const Game = (() => {
 
   function roomDef(i) { return mode === 'endless' ? endlessRoom(endless.seed, i) : level.rooms[i]; }
 
-  let roomFocus = 1, roomPickup = null;     // what you walked into the room with
+  let roomFocus = 1, roomPickup = null, roomArmor = null;     // what you walked into the room with
   function loadRoom(i) {
     roomIdx = i;
     roomFocus = i === 0 && mode === 'campaign' ? 1 : focus;    // a retry starts with what you walked in with
     roomPickup = i > 0 && player && player.alive && player.pickup ? { id: player.pickup.id, ammo: player.pickup.ammo } : null;
+    roomArmor = i > 0 && player && player.armorHp ? { slots: JSON.parse(JSON.stringify(player.armorHp)), blastUsed: player.blastUsed } : null;
     const def = roomDef(i);
     room = new Room(def, mode === 'endless' ? def.theme : level.theme);
     resetRoomEntities();
@@ -134,7 +135,7 @@ const Game = (() => {
       color: skin.body, dark: skin.dark, shine: skin.shine, rainbow: skin.rainbow, prism: skin.prism, hat: Save.data.hat, deadColor: deadCol(),
     });
     player.isPlayer = true;
-    applyArmor(player);
+    applyArmor(player, mode === 'menu' ? null : roomArmor);
     const w = WEAPON[Save.data.weapon] || WEAPONS[0];
     player.weapon = { id: w.id, ammo: w.mag, cd: 0, reloadT: 0, kick: 0, kick2: 0, alt: 0 };
     player.pickup = roomPickup && mode !== 'menu' ? { id: roomPickup.id, ammo: roomPickup.ammo, cd: 0.2, held: true } : null;
@@ -151,15 +152,19 @@ const Game = (() => {
     clearT = -1; roomT = 0; deathT = 0;
     forcedT = 0; hitstop = 0;
   }
-  // armour is fully repaired whenever a room starts or restarts
-  function applyArmor(p) {
-    p.armorHp = {}; p.blastUsed = false; p.armorInv = 0;
-    const show = {};
+  // Armour durability lasts a whole level (or Endless run): it carries from room to room, a room
+  // retry gives back what you walked in with, and it's fully repaired when a level starts.
+  function applyArmor(p, snap) {
+    p.armorHp = {}; p.blastUsed = snap ? snap.blastUsed : false; p.armorInv = 0;
+    const show = {}, broken = {};
     for (const slot of ['head', 'body', 'legs']) {
       const ar = ARMOR_BY[Save.data.armor[slot]];
-      if (ar && Save.owns('armor', ar.id)) { p.armorHp[slot] = { id: ar.id, hp: ar.hits, max: ar.hits }; show[slot] = ar; }
+      if (!ar || !Save.owns('armor', ar.id)) continue;
+      const prev = snap && snap.slots[slot] && snap.slots[slot].id === ar.id ? snap.slots[slot].hp : ar.hits;
+      p.armorHp[slot] = { id: ar.id, hp: prev, max: ar.hits }; show[slot] = ar;
+      if (prev <= 0) broken[slot] = true;
     }
-    p.body.armor = show; p.body.armorBroken = {};
+    p.body.armor = show; p.body.armorBroken = broken;
   }
   const LEG_JOINTS = new Set([J.FKNEE, J.FFOOT, J.BKNEE, J.BFOOT]);
   // Returns true if armour took the hit. kind: 'shot' | 'melee' | 'blast'
@@ -367,8 +372,8 @@ const Game = (() => {
     const wdt = dtReal * tsEff;
     const pdt = dtReal * (1 - (1 - tsEff) * 0.52);
     if (state === 'play') {
-      if (slowOn) { focus -= dtReal * 0.19; if (focus <= 0) { focus = 0; slowOn = false; Sfx.slowOut(); } }
-      else focus = Math.min(1, focus + dtReal * 0.03);
+      if (slowOn) { focus -= dtReal * 0.23; if (focus <= 0) { focus = 0; slowOn = false; Sfx.slowOut(); } }
+      else focus = Math.min(1, focus + dtReal * 0.045);
       run.time += dtReal; roomT += dtReal;
       if (run.comboT > 0) { run.comboT -= dtReal; if (run.comboT <= 0) run.combo = 0; }
     }
