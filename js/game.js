@@ -113,6 +113,7 @@ const Game = (() => {
 
   function roomDef(i) { return mode === 'endless' ? endlessRoom(endless.seed, i) : level.rooms[i]; }
 
+  let godMode = false, zoomK = 1;       // capture-tool only
   let roomFocus = 1, roomPickup = null, roomArmor = null;     // what you walked into the room with
   function loadRoom(i) {
     roomIdx = i;
@@ -305,7 +306,7 @@ const Game = (() => {
     const t = cameraTarget();
     cam.x = t.x; cam.y = t.y; cam.zoom = baseZoom();
   }
-  function baseZoom() { return Math.min(sh / viewH(), sw / 1150); }
+  function baseZoom() { return Math.min(sh / viewH(), sw / 1150) * zoomK; }
   function cameraTarget() {
     const z = baseZoom() * (1 + cam.kick);
     const hw = sw / 2 / z, hh = sh / 2 / z;
@@ -830,7 +831,9 @@ const Game = (() => {
     const dual = !!w.dual;
     const second = dual && (ws.alt = (ws.alt || 0) ^ 1) === 1;
     const len = w.len;
-    const mz = c.body.muzzle(len, second);
+    let mz = c.body.muzzle(len, second);
+    // the very first frame of a room fires before the body has been posed: shoot from the chest
+    if (!Number.isFinite(mz.x) || !Number.isFinite(mz.y)) mz = { x: c.x + Math.cos(c.aim) * 30, y: c.y - 74 + Math.sin(c.aim) * 30 };
     const pellets = w.pellets || 1;
     const spreadK = ts < 0.6 ? 0.5 : 1;
     for (let i = 0; i < pellets; i++) {
@@ -1335,7 +1338,7 @@ const Game = (() => {
 
   function killPlayer(vx, vy, killer, idx = J.NECK, kind = 'melee') {
     const p = player;
-    if (!p.alive || state !== 'play') return;
+    if (!p.alive || state !== 'play' || godMode) return;      // godMode: only set by trailer capture tooling
     if (armorBlock(idx, kind, killer, vx, vy)) return;
     p.alive = false;
     p.body.die(vx, vy, idx, room);
@@ -1619,6 +1622,7 @@ const Game = (() => {
   function drawBullets() {
     for (const b of bullets) {
       const sp = Math.hypot(b.vx, b.vy), ux = b.vx / sp, uy = b.vy / sp;
+      if (!(sp > 0) || !Number.isFinite(b.x + b.y + b.ox + b.oy)) continue;   // never let one bad bullet kill the frame
       if (b.owner === 'p' && b.blast) {
         // grenade: a dark shell with a blinking light
         ctx.fillStyle = '#3f4a32'; ctx.beginPath(); ctx.arc(b.x, b.y, 6, 0, TAU); ctx.fill();
@@ -1904,6 +1908,8 @@ const Game = (() => {
     debugSpawn(type, x) { const e = makeEnemy(type, x, player.y, false); enemies.push(e); return e; },
     debugRoom(i) { loadRoom(i); state = 'play'; },
     debugClear() { for (const e of enemies) if (e.alive) killEnemy(e, 300, -200, J.NECK, { head: false }); },
+    set god(v) { godMode = !!v; },
+    set zoomK(v) { zoomK = v; },
     get enemies() { return enemies; }, get pieces() { return pieces; }, worldToScreen,
   };
 })();
