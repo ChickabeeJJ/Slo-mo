@@ -43,12 +43,16 @@
       else if (!UI.modalOpen()) UI.openPause();
       return;
     }
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { Game.setKey('sprint', true); if (!e.repeat && inPlay()) Game.press('shiftSlide'); }
-    if (MOVE[e.code]) { Game.setKey(MOVE[e.code], true); if (inPlay()) e.preventDefault(); }
+    // Ctrl is the hold-to-sprint key; Shift only slides
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight') { Game.setKey('sprint', true); if (inPlay()) e.preventDefault(); }
+    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !e.repeat && inPlay()) Game.press('shiftSlide');
+    // while sprinting, stop the browser treating Ctrl+D / Ctrl+S / Ctrl+A etc. as shortcuts
+    if (e.ctrlKey && inPlay() && !MOVE[e.code]) e.preventDefault();
+    if (MOVE[e.code]) { Game.setKey(MOVE[e.code], true); if (inPlay() || e.ctrlKey) e.preventDefault(); }
     if (!inPlay() || e.repeat) return;
     switch (e.code) {
       case 'KeyW': case 'ArrowUp': case 'Space': e.preventDefault(); Game.press('jump'); break;
-      case 'KeyS': case 'ArrowDown': case 'KeyC': case 'ControlLeft': e.preventDefault(); Game.press('slide'); break;
+      case 'KeyS': case 'ArrowDown': case 'KeyC': e.preventDefault(); Game.press('slide'); break;
       case 'KeyQ': Game.press('slow'); break;
       case 'KeyR': Game.press('reload'); break;
       case 'KeyE': case 'KeyF': Game.press('pick'); break;
@@ -58,7 +62,7 @@
   });
   window.addEventListener('keyup', e => {
     if (MOVE[e.code]) Game.setKey(MOVE[e.code], false);
-    if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') Game.setKey('sprint', false);
+    if (e.code === 'ControlLeft' || e.code === 'ControlRight') Game.setKey('sprint', false);
     if (e.code === 'KeyJ') Game.setKey('shoot', false);
   });
   window.addEventListener('blur', () => { for (const k of ['left', 'right', 'sprint', 'shoot']) Game.setKey(k, false); });

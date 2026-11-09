@@ -25,7 +25,8 @@ Reach the exit of each room. Clearing the enemies is optional but earns points a
 Controls
 Desktop
 A and D or Left and Right arrows: move
-Shift: sprint (press while moving to slide)
+Ctrl: hold to sprint
+Shift: slide (even from a standstill)
 W, Up arrow or Space: jump (jump while sprinting or sliding to flip)
 S, Down arrow, C or Right mouse button: slide
 Mouse: aim

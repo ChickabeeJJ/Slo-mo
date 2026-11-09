@@ -87,7 +87,7 @@ const UI = (() => {
     $('streakChip').classList.toggle('hidden', !Save.streakState().claimable);
     const touch = document.body.classList.contains('touch');
     $('homeHint').innerHTML = touch ? '' : [
-      ['A D', 'MOVE'], ['SHIFT', 'SPRINT'], ['SPACE', 'JUMP'], ['RMB', 'SLIDE'], ['Q', 'SLOW TIME'], ['E', 'GRAB GUN'],
+      ['A D', 'MOVE'], ['CTRL', 'SPRINT'], ['SPACE', 'JUMP'], ['SHIFT', 'SLIDE'], ['Q', 'SLOW TIME'], ['E', 'GRAB GUN'],
     ].map(([k, t]) => `<span><kbd>${k}</kbd>${t}</span>`).join('');
   }
 

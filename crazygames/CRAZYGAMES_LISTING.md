@@ -10,7 +10,7 @@ Slo-Mo is a stylish 2D action shooter where every bullet is visible and time is 
 Fight through 75 levels across five chapters (a white training lab, offices, a warehouse, a glass highrise and a neon-lit after-hours floor), with the difficulty ramping all the way. Earn three stars on every level, chain kills into huge style combos, then take on Endless mode, where the rooms never stop and the score is all that matters. Spend coins in the Armory on 13 guns with their own tricks (ricochet rounds, homing rounds, grenades, a minigun, a wall-piercing railgun) plus colours and hats. Come back daily for new missions and a growing login reward.
 
 **Controls:**
-- A / D: move · Shift: sprint
+- A / D: move · Ctrl: sprint · Shift: slide
 - Space: jump (jump while sprinting to flip)
 - Right click / S: slide
 - Mouse: aim · Left click: shoot

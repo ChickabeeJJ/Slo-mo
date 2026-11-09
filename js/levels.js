@@ -18,7 +18,7 @@
    ========================================================================= */
 
 const TUTORIAL_TEXT = {
-  sprint: ['Hold SHIFT\nto sprint', 'Push the stick\nall the way to sprint'],
+  sprint: ['Hold CTRL\nto sprint', 'Push the stick\nall the way to sprint'],
   jump: ['SPACE to jump', 'Tap JUMP or flick\nthe left stick up'],
   flip: ['Jump while sprinting\nor sliding to flip', 'Push the stick all the way,\nthen JUMP to flip'],
   slide: ['SHIFT or RIGHT CLICK\nto slide', 'Tap SLIDE or flick\nthe left stick down'],
