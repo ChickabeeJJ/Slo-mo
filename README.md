@@ -75,8 +75,7 @@ Lowercase map chars face the player's side. UPPERCASE ones face away until they 
 | Titan Helm (3) | Bastion Suit (4, thorns: Blades that hit it die, Brutes are stunned) | Sentinel Legs (3) |
 
 Deflect sends the blocked round straight back at whoever fired it.
-- **Daily missions:** three a day from a pool of 12, with a 250-coin bonus for finishing all three.
-- **Daily login reward:** a 7-day streak that pays 50 → 400 coins and resets if you miss a day.
+- **Daily hub:** one menu with two tabs and a live countdown to the daily reset. **Reward** is a 7-day login streak that pays 50 → 400 coins (day 7 is the jackpot) and resets if you miss a day. **Missions** are three a day from a pool of 12, with progress bars, a Claim All button and a 250-coin bonus chest for claiming all three.
 - **Coins:** from clears (stars, style and a first-clear bonus), Endless runs and missions.
 
 ## Levels

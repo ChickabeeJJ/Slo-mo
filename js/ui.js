@@ -537,6 +537,7 @@ const UI = (() => {
   function openModal(kind, html) {
     modalOpen = true; modalKind = kind;
     document.body.classList.toggle('result-open', kind === 'results' || kind === 'endless');
+    $('sheet').dataset.kind = kind;
     $('sheet').innerHTML = html;
     Icons.hydrate($('sheet'));
     $('modal').classList.remove('hidden');
@@ -625,40 +626,87 @@ const UI = (() => {
     Sfx.setSfx(st.sfx); Sfx.setMusic(st.music);
   }
 
-  function openMissions() {
+  /* ------------------------------------------------- daily hub (rewards + missions) */
+  const MISSION_ICON = { kills: 'skull', head: 'target', air: 'up', slide: 'slide', slow: 'clock', deflect: 'shield', levels: 'grid', stars: 'star', boom: 'fire', endless: 'infinity', multi: 'skull', flip: 'flip' };
+  let dailyTimer = null;
+  const untilReset = () => {
+    const ms = 86400000 - (Date.now() % 86400000), p = n => String(n).padStart(2, '0');
+    return p(Math.floor(ms / 3600000)) + ':' + p(Math.floor(ms / 60000) % 60) + ':' + p(Math.floor(ms / 1000) % 60);
+  };
+  function openMissions() { openDaily('missions'); }
+  function openStreak() { openDaily('rewards'); }
+  function openDaily(tab, fx) {
     Save.rollDaily();
-    const d = S().daily;
-    const hrs = Math.ceil((86400000 - (Date.now() % 86400000)) / 3600000);
-    openModal('missions', `
-      <h2>DAILY MISSIONS</h2>
-      <p class="sub">NEW MISSIONS IN ${hrs}H</p>
-      ${d.list.map((m, i) => `<div class="mission ${m.claimed ? 'done' : ''}">
-        <p>${m.text}</p>
-        <button class="btn ${m.prog >= m.n && !m.claimed ? 'primary' : ''} small" data-i="${i}" ${m.prog >= m.n && !m.claimed ? '' : 'disabled'}><b>${m.claimed ? 'DONE' : '+' + m.reward}</b></button>
-        <div class="bar2"><i style="width:${m.prog / m.n * 100}%"></i></div>
-        <span class="prog">${m.prog} / ${m.n}</span>
-      </div>`).join('')}
-      <div class="row"><span><span class="ic" data-icon="gift"></span>FINISH ALL THREE</span><button class="btn small ${Save.allClaimed() && !d.bonus ? 'primary' : ''}" id="mBonus" ${Save.allClaimed() && !d.bonus ? '' : 'disabled'}><b>${d.bonus ? 'CLAIMED' : '+250'}</b></button></div>
+    const d = S().daily, st = Save.streakState();
+    const ready = d.list.filter(m => !m.claimed && m.prog >= m.n).length, claimed = d.list.filter(m => m.claimed).length;
+    const bonusReady = Save.allClaimed() && !d.bonus;
+    const doneAll = !st.claimable && st.count > 0 && st.count % 7 === 0;       // day 7 just claimed
+    const dayState = i => (doneAll || i < st.day ? 'got' : i === st.day ? (st.claimable ? 'today' : 'next') : 'locked');
+    const rewards = () => `
+      <div class="streak-banner ${st.count > 0 ? 'lit' : ''}">
+        <span class="ic" data-icon="fire"></span>
+        <div><b>${st.count > 0 ? st.count + ' DAY STREAK' : 'START YOUR STREAK'}</b><small>${st.claimable ? 'Today\'s reward is ready. Miss a day and the streak starts over.' : 'Come back tomorrow to keep it going.'}</small></div>
+      </div>
+      <div class="days">${Save.STREAK.map((r, i) => `<div class="day ${dayState(i)} ${i === 6 ? 'jackpot' : ''}">
+        <small>${dayState(i) === 'today' ? 'TODAY' : i === 6 ? 'DAY 7 · JACKPOT' : 'DAY ' + (i + 1)}</small>
+        <span class="ic" data-icon="${dayState(i) === 'got' ? 'check' : i === 6 ? 'gift' : 'coin'}"></span>
+        <b>${r}</b>
+      </div>`).join('')}</div>
+      <button class="btn primary big-claim ${st.claimable ? 'glow' : ''}" id="stClaim" ${st.claimable ? '' : 'disabled'}>
+        ${st.claimable ? `<span class="ic coin" data-icon="coin"></span><b>CLAIM +${st.reward}</b>` : `<b>NEXT REWARD IN <span class="dTimer">${untilReset()}</span></b>`}
+      </button>`;
+    const missions = () => `
+      <div class="m-track">
+        <div class="m-track-top"><b>${claimed} / 3 CLAIMED</b><small>Claim all three for the bonus chest</small></div>
+        <div class="m-line">
+          <i style="width:${(d.bonus ? 3 : claimed) / 3 * 100}%"></i>
+          ${[0, 1, 2].map(i => `<span class="node ${i < claimed ? 'on' : ''}" style="left:${(i + 1) / 3 * 100}%">${i === 2 ? '' : i + 1}</span>`).join('')}
+        </div>
+        <button class="chest ${bonusReady ? 'ready' : d.bonus ? 'got' : ''}" id="mBonus" ${bonusReady ? '' : 'disabled'}><span class="ic" data-icon="${d.bonus ? 'check' : 'gift'}"></span><b>${d.bonus ? 'CLAIMED' : '+250'}</b></button>
+      </div>
+      ${d.list.map((m, i) => {
+        const can = m.prog >= m.n && !m.claimed;
+        return `<div class="mission ${m.claimed ? 'done' : can ? 'ready' : ''}" style="animation-delay:${i * 0.05}s">
+          <span class="m-ic"><span class="ic" data-icon="${m.claimed ? 'check' : MISSION_ICON[m.id] || 'target'}"></span></span>
+          <div class="m-main">
+            <p>${m.text}</p>
+            <div class="bar2"><i style="width:${m.prog / m.n * 100}%"></i><span>${m.prog} / ${m.n}</span></div>
+          </div>
+          <button class="btn small ${can ? 'primary glow' : ''}" data-i="${i}" ${can ? '' : 'disabled'}>${m.claimed ? '<b>DONE</b>' : `<span class="ic coin" data-icon="coin"></span><b>${m.reward}</b>`}</button>
+        </div>`;
+      }).join('')}
+      ${ready + (bonusReady ? 1 : 0) > 1 ? `<button class="btn primary big-claim glow" id="mAll"><b>CLAIM ALL</b></button>` : ''}`;
+    openModal('daily', `
+      <div class="daily-top">
+      <div class="daily-head">
+        <h2>DAILY</h2>
+        <span class="reset"><span class="ic" data-icon="clock"></span>RESETS IN <b class="dTimer">${untilReset()}</b></span>
+      </div>
+      <nav class="seg dtabs">
+        <button data-t="rewards" class="${tab === 'rewards' ? 'active' : ''}">REWARD${st.claimable ? '<i class="dot"></i>' : ''}</button>
+        <button data-t="missions" class="${tab === 'missions' ? 'active' : ''}">MISSIONS${Save.missionsReady() ? '<i class="dot"></i>' : ''}</button>
+      </nav>
+      </div>
+      <div class="daily-body ${fx ? '' : 'in'}">${tab === 'rewards' ? rewards() : missions()}</div>
       <button class="btn" id="mDone"><b>CLOSE</b></button>`);
-    $('sheet').querySelectorAll('.mission .btn').forEach(b => {
-      b.onclick = () => { const n = Save.claimMission(+b.dataset.i); if (n) { Sfx.coin(); toast('+' + n + ' coins', 'coin'); } openMissions(); renderHome(); };
-    });
-    $('mBonus').onclick = () => { const n = Save.claimBonus(); if (n) { Sfx.unlock(); toast('+' + n + ' coins', 'gift'); } openMissions(); renderHome(); };
-    $('mDone').onclick = () => { click(); closeModal(); };
-  }
-
-  function openStreak() {
-    const st = Save.streakState();
-    openModal('streak', `
-      <h2 class="win">DAILY REWARD</h2>
-      <p class="sub">COME BACK EVERY DAY. DAY 7 PAYS BIG.</p>
-      <div class="streak-row">${Save.STREAK.map((r, i) => `<div class="${i < st.day ? 'got' : i === st.day ? 'today' : ''}"><small>DAY ${i + 1}</small><span class="ic" data-icon="coin"></span>${r}</div>`).join('')}</div>
-      <button class="btn primary" id="stClaim" ${st.claimable ? '' : 'disabled'}><b>${st.claimable ? 'CLAIM +' + st.reward : 'COME BACK TOMORROW'}</b></button>`);
-    $('stClaim').onclick = () => {
-      const n = Save.claimStreak();
-      if (n) { Sfx.unlock(); toast('+' + n + ' coins', 'gift'); }
-      closeModal(); renderHome();
+    const sheet = $('sheet');
+    const gain = (n, icon, big) => { if (!n) return; big ? Sfx.unlock() : Sfx.coin(); toast('+' + n + ' coins', icon); renderHome(); };
+    sheet.querySelectorAll('.dtabs button').forEach(b => { b.onclick = () => { click(); openDaily(b.dataset.t); }; });
+    sheet.querySelectorAll('.mission .btn').forEach(b => { b.onclick = () => { gain(Save.claimMission(+b.dataset.i), 'coin'); openDaily('missions', true); }; });
+    if ($('mBonus')) $('mBonus').onclick = () => { gain(Save.claimBonus(), 'gift', true); openDaily('missions', true); };
+    if ($('mAll')) $('mAll').onclick = () => {
+      let n = 0; d.list.forEach((m, i) => { n += Save.claimMission(i); }); n += Save.claimBonus();
+      gain(n, 'gift', true); openDaily('missions', true);
     };
+    if ($('stClaim')) $('stClaim').onclick = () => { gain(Save.claimStreak(), 'gift', true); openDaily('rewards', true); };
+    $('mDone').onclick = () => { click(); closeModal(); };
+    // live countdown; it stops itself once the sheet shows something else
+    clearInterval(dailyTimer);
+    dailyTimer = setInterval(() => {
+      const els = document.querySelectorAll('#sheet .dTimer');
+      if (!els.length || modalKind !== 'daily') { clearInterval(dailyTimer); return; }
+      const t = untilReset(); els.forEach(e => { e.textContent = t; });
+    }, 1000);
   }
 
   /* ------------------------------------------------------------ toasts */
