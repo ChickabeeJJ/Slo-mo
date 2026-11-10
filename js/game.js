@@ -659,6 +659,18 @@ const Game = (() => {
     let wantShoot;
     if (w.spinup) wantShoot = holding && pw.spin >= 1;
     else wantShoot = input.touch ? holding || input.shootBuf > 0 : (w.auto ? input.shoot : input.shootBuf > 0);
+    // railgun: one click starts a short charge, and the shot goes off by itself when it's full
+    if (w.charge) {
+      if (!(pw.chargeT > 0) && wantShoot && pw.cd <= 0 && ready) { pw.chargeT = 0.0001; input.shootBuf = 0; Sfx.spin(0.3); }
+      wantShoot = false;
+      if (pw.chargeT > 0) {
+        const was = pw.chargeT; pw.chargeT += dt;
+        if (Math.floor(was / w.charge * 4) !== Math.floor(pw.chargeT / w.charge * 4)) Sfx.spin(0.4 + pw.chargeT / w.charge * 0.6);
+        const mzc = p.body.muzzle(w.len), k = pw.chargeT / w.charge;
+        if (Number.isFinite(mzc.x) && Math.random() < 0.7) { const a = rand(0, TAU), r = 26 + rand(0, 16) * (1 - k); Fx.trail(mzc.x + Math.cos(a) * r * (1 - k * 0.7), mzc.y + Math.sin(a) * r * (1 - k * 0.7), '#8fd0ff'); }
+        if (pw.chargeT >= w.charge) { pw.chargeT = 0; wantShoot = ready; if (wantShoot) Sfx.charged(); }
+      }
+    } else pw.chargeT = 0;
     // burst follow-up rounds
     if (pw.burstLeft > 0) {
       pw.burstT -= dt;
@@ -667,7 +679,7 @@ const Game = (() => {
         pw.burstLeft = pw.ammo > 0 ? pw.burstLeft - 1 : 0;
       }
     }
-    if (wantShoot && pw.cd <= 0 && !(pw.burstLeft > 0)) {
+    if (wantShoot && (pw.cd <= 0 || w.charge) && !(pw.burstLeft > 0)) {
       input.shootBuf = 0;
       if (p.pickup) {
         if (p.pickup.ammo > 0) fire(p, w, p.pickup);
@@ -958,7 +970,7 @@ const Game = (() => {
           } else if (e.cd > 0) e.cd -= dt;
           else if (sees || (e.charge > 0 && e.lostT < 0.25)) {
             e.charge += dt;
-            if (e.charge >= d.aim * aimMul()) { e.charge = 0; e.burst = d.burst || 1; e.burstT = 0; }
+            if (e.charge >= d.aim * aimMul() * 0.9) { e.charge = 0; e.burst = d.burst || 1; e.burstT = 0; }
           } else e.charge = Math.max(0, e.charge - dt * 2);
         }
         // footwork
@@ -979,6 +991,7 @@ const Game = (() => {
       const ax = e.x + Math.sign(want) * (e.w / 2 + 8);
       if (!room.groundAhead(ax, e.y) || room.boxHit(ax - 2, e.y - e.h + 4, ax + 2, e.y - 22)) want = 0;
     }
+    if (e.alert && e.bstate !== 'charge') want *= 1.15;        // alerted enemies move a little faster
     e.vx = e.bstate === 'charge' ? want : approach(e.vx, want, 1400 * dt);
     e.vy = Math.min(e.vy + G * dt, 1500);
     const wasAir = !e.grounded;
@@ -1607,7 +1620,7 @@ const Game = (() => {
   function drawLaser(e) {
     const d = e.def;
     if (!d.gun || !e.alert || e.reactT > 0.35 || !player.alive) return;
-    const k = e.charge / (d.aim * aimMul());
+    const k = e.charge / (d.aim * aimMul() * 0.9);
     if (k <= 0 && !d.laser) return;
     const len = WEAPON[d.gun] ? WEAPON[d.gun].len : 16;
     const m = e.body.muzzle(len);
@@ -1645,6 +1658,16 @@ const Game = (() => {
   }
   function drawBullets() {
     drawBeams();
+    const cw = player && player.alive ? (player.pickup || player.weapon) : null;
+    if (cw && cw.chargeT > 0) {
+      const w = curWeapon(), k = clamp(cw.chargeT / (w.charge || 1), 0, 1), m = player.body.muzzle(w.len);
+      if (Number.isFinite(m.x)) {
+        Glow.draw(ctx, '#58e1ff', m.x, m.y, 8 + k * 26, 0.5 + k * 0.5);
+        Glow.draw(ctx, '#ffffff', m.x, m.y, 3 + k * 9, 0.9);
+        ctx.strokeStyle = 'rgba(160,235,255,' + (0.35 + k * 0.6) + ')'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(m.x, m.y, 30 - k * 22, clock * 9, clock * 9 + TAU * (0.25 + k * 0.75)); ctx.stroke();
+      }
+    }
     for (const b of bullets) {
       const sp = Math.hypot(b.vx, b.vy), ux = b.vx / sp, uy = b.vy / sp;
       if (!(sp > 0) || !Number.isFinite(b.x + b.y + b.ox + b.oy)) continue;   // never let one bad bullet kill the frame
