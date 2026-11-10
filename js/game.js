@@ -531,7 +531,8 @@ const Game = (() => {
       else if (!p.grounded && p.airT > 0.06 && !p.airSlide && !p.crawl) {
         p.airSlide = true; p.flipping = false; p.flip = 0;
         p.slideDir = Math.abs(mx) > 0.1 ? Math.sign(mx) : Math.abs(p.vx) > 40 ? Math.sign(p.vx) : p.facing;
-        p.vx = p.slideDir * Math.max(Math.abs(p.vx), 330);
+        p.diveFresh = !((p.slideRest || 0) > 0);            // a rested dive still lands into a full slide
+        p.vx = p.slideDir * (p.diveFresh ? Math.max(Math.abs(p.vx), 330) : Math.abs(p.vx) * 0.9);
         p.vy = Math.max(p.vy, 0) + 260;
         p.h = SLIDE_H;
         Sfx.slide();
@@ -561,6 +562,7 @@ const Game = (() => {
     // safety net: if we're ever standing inside a low ceiling, drop back into a crawl
     if (p.h === STAND_H && p.grounded && !room.canStand(p, STAND_H, panes)) { p.h = SLIDE_H; p.crawl = true; p.flipping = false; if (!p.slideDir) p.slideDir = p.facing; }
     const sliding = p.slideT > 0 || p.crawl || p.airSlide;
+    if (sliding) p.slideRest = SLIDE_REST; else if (p.grounded && p.slideRest > 0) p.slideRest -= dt;
 
     // ---- horizontal accel
     if (!sliding) {
@@ -594,7 +596,10 @@ const Game = (() => {
           Sfx.reload(); emit('flipReload');
         }
       } else {
-        if (Math.abs(p.vx) > 320) { p.vx *= 0.85; Fx.text(p.x, p.y - 120, 'OUT OF FLIPS', '#e2434b', 13); }
+        if (Math.abs(p.vx) > 320) {
+          p.vx *= 0.8;
+          if (clock - (p.noFlipMsgAt || -9) > 1.5) { p.noFlipMsgAt = clock; Fx.text(p.x, p.y - 120, 'OUT OF FLIPS', '#e2434b', 13); }
+        }
         Sfx.jump();
       }
       Fx.dust(p.x, p.y, 5);
@@ -618,8 +623,8 @@ const Game = (() => {
     if (out.wall && p.slideT > 0) { p.slideT = 0; p.vx = 0; if (!tryStand(p)) p.crawl = true; }
     if (p.grounded && p.airSlide) {
       p.airSlide = false;
-      startSlide(p, p.slideDir);
-      p.vx = p.slideDir * Math.max(Math.abs(p.vx), Math.abs(fallVx) * 1.05, SLIDE_V);
+      startSlide(p, p.slideDir, !!p.diveFresh);
+      if (!p.slideTired) p.vx = p.slideDir * Math.max(Math.abs(p.vx), Math.abs(fallVx), SLIDE_V);
     } else if (out.landed && wasAir) {
       Sfx.land(clamp(fallV / 900, 0.3, 1.2));
       if (fallV > 500) Fx.dust(p.x, p.y, 8);
@@ -737,7 +742,7 @@ const Game = (() => {
   // a crawl with room to stand stands up, and anything stuck low for too long (or not moving)
   // finds the nearest reachable spot with headroom and stands there.
   function unstick(p, dt) {
-    if (p.airSlide && p.grounded) { p.airSlide = false; startSlide(p, p.slideDir); }
+    if (p.airSlide && p.grounded) { p.airSlide = false; startSlide(p, p.slideDir, !!p.diveFresh); }
     if (p.slideT > 4) p.slideT = 1.3;
     const low = p.slideT > 0 || p.crawl || p.h !== STAND_H;
     if (!low || !p.grounded) { p.lowT = 0; p.lowStill = 0; return; }
@@ -770,10 +775,17 @@ const Game = (() => {
     return false;
   }
 
-  function startSlide(p, mx = 0) {
+  // A fresh slide is a burst of speed. Chaining slide > jump > dive > slide used to refill that burst
+  // on every landing, so you could ricochet around a room forever at top speed. Now a slide started
+  // within SLIDE_REST seconds of the last one is "tired": it only keeps the speed you already have.
+  const SLIDE_REST = 0.9;
+  function startSlide(p, mx = 0, fresh) {
     p.slideDir = Math.abs(mx) > 0.1 ? Math.sign(mx) : Math.abs(p.vx) > 40 ? Math.sign(p.vx) : p.facing;
-    p.vx = p.slideDir * clamp(Math.abs(p.vx) * 1.2, SLIDE_V, 720);
-    p.slideT = 1.3; p.h = SLIDE_H;
+    const tired = fresh == null ? (p.slideRest || 0) > 0 : !fresh;
+    p.vx = p.slideDir * (tired ? clamp(Math.abs(p.vx) * 0.9, 240, 720) : clamp(Math.abs(p.vx) * 1.2, SLIDE_V, 720));
+    p.slideTired = tired;
+    p.slideRest = SLIDE_REST;
+    p.slideT = tired ? 0.8 : 1.3; p.h = SLIDE_H;
     Sfx.slide(); Fx.dust(p.x, p.y, 6);
   }
 

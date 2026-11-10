@@ -435,7 +435,10 @@ class Room {
     for (const d of this.decor) {
       if (d.k === 'hazard' || d.k === 'pipe') {
         // runs along the back wall just above every floor / just under every ceiling
+        // the pipe only follows the room's main (highest) ceiling, never the underside of a low header
+        const topY = d.k === 'pipe' ? Math.min(...this.ceilRuns.map(r => r.y)) : 0;
         for (const r of (d.k === 'hazard' ? this.floorRuns : this.ceilRuns)) {
+          if (d.k === 'pipe' && r.y > topY) continue;
           if (d.k === 'hazard') {
             const [x, y] = P(r.x1, r.y - 12), w = (r.x2 - r.x1) * k;
             ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, 10 * k); ctx.clip();
