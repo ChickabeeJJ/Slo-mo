@@ -430,6 +430,13 @@ body.touch .home-hint { display: none; }
 .hud-bl { position: absolute; left: calc(16px + var(--safe-l)); bottom: calc(16px + var(--safe-b)); display: flex; flex-direction: column; gap: 5px; pointer-events: none; }
 .hud-bl-row { display: flex; gap: 5px; align-items: stretch; }
 body.touch .hud-bl { bottom: auto; top: calc(66px + var(--safe-t)); transform: scale(0.9); transform-origin: left top; }
+/* touch: a compact flip counter the same height as the armour bar */
+body.touch .flips { padding: 5px 10px 5px 8px; gap: 6px; clip-path: var(--cut-s); }
+body.touch .flips > .ic { width: 16px; height: 16px; }
+body.touch .flip-col { gap: 3px; }
+body.touch .flip-pips { gap: 3px; }
+body.touch .flip-pips i { width: 8px; height: 11px; }
+body.touch .flip-charge { height: 2px; }
 .flips { position: relative; display: flex; align-items: center; gap: 9px; padding: 9px 13px 9px 11px; clip-path: var(--cut-m); background: var(--panel); }
 .flips > .ic { width: 22px; height: 22px; color: var(--acc); transition: color .2s, transform .2s; }
 .flip-col { display: flex; flex-direction: column; gap: 5px; }

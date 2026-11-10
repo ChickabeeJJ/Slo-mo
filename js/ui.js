@@ -630,13 +630,15 @@ const UI = (() => {
   /* ------------------------------------------------------------- touch */
   function setupTouch() {
     const joy = $('joy'), knob = $('joyKnob'), base = joy.querySelector('.joy-base');
-    let jid = null, jx = 0, jy = 0, lastY = 0;
+    let jid = null, jx = 0, jy = 0, ox = 0, oy = 0, lastY = 0;
     const R = () => parseFloat(getComputedStyle(document.body).getPropertyValue('--joy')) / 2 || 60;
     joy.addEventListener('pointerdown', e => {
       document.body.classList.add('touch'); Sfx.ensure();
       jid = e.pointerId; jx = e.clientX; jy = e.clientY;
+      // the stick's parts are positioned inside the touch zone, so convert from screen to zone coordinates
+      const zr = joy.getBoundingClientRect(); ox = zr.left; oy = zr.top;
       joy.classList.add('on');
-      for (const el of [base, knob]) { el.style.left = jx + 'px'; el.style.top = jy + 'px'; }
+      for (const el of [base, knob]) { el.style.left = jx - ox + 'px'; el.style.top = jy - oy + 'px'; }
       joy.setPointerCapture(e.pointerId);
     });
     joy.addEventListener('pointermove', e => {
@@ -645,7 +647,7 @@ const UI = (() => {
       let dx = e.clientX - jx, dy = e.clientY - jy;
       const d = Math.hypot(dx, dy);
       if (d > r) { dx = dx / d * r; dy = dy / d * r; }
-      knob.style.left = jx + dx + 'px'; knob.style.top = jy + dy + 'px';
+      knob.style.left = jx - ox + dx + 'px'; knob.style.top = jy - oy + dy + 'px';
       const ax = dx / r, ay = dy / r;
       Game.setAxis(ax, ay);
       if (ay < -0.62 && lastY >= -0.62) Game.press('jump');

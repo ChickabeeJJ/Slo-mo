@@ -306,7 +306,12 @@ const Game = (() => {
     const t = cameraTarget();
     cam.x = t.x; cam.y = t.y; cam.zoom = baseZoom();
   }
-  function baseZoom() { return Math.min(sh / viewH(), sw / 1150) * zoomK; }
+  const touchView = () => input.touch || document.body.classList.contains('touch');
+  function baseZoom() {
+    // phones: frame the room much tighter than on desktop so the fight fills the small screen
+    if (state !== 'menu' && touchView()) return Math.min(sh / clamp(room.h + 140, 420, 760), sw / 860) * zoomK;
+    return Math.min(sh / viewH(), sw / 1150) * zoomK;
+  }
   function cameraTarget() {
     const z = baseZoom() * (1 + cam.kick);
     const hw = sw / 2 / z, hh = sh / 2 / z;
