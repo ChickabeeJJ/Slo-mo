@@ -22,7 +22,7 @@ const WEAPONS = [
   { id: 'rifle', name: 'Battle Rifle', price: 1900, mag: 20, rate: 0.22, reload: 1.6, spread: 0.018, auto: true, len: 30, desc: 'Steady full auto with a tight spread.' },
   { id: 'launcher', name: 'Launcher', price: 2200, mag: 4, rate: 1.0, reload: 2.0, spread: 0, gravity: 900, speedK: 0.85, blast: 115, len: 28, kick: 2.2, big: true, desc: 'Arcing grenades that blow on impact. Mind the splash.' },
   { id: 'minigun', name: 'Minigun', price: 2600, mag: 90, rate: 0.065, reload: 2.4, spread: 0.08, auto: true, spinup: 0.7, heavy: true, len: 30, desc: 'Spins up, then shreds. You move slowly while firing.' },
-  { id: 'railgun', name: 'Railgun', price: 5000, mag: 3, rate: 0.6, reload: 2.0, spread: 0, rail: true, charge: 0.3, dmg: 4, wallPierce: true, len: 34, kick: 3, big: true, desc: 'A short charge, then an instant beam through every enemy, shield, crate and wall in its path.' },
+  { id: 'railgun', name: 'Railgun', price: 5000, mag: 3, rate: 0.6, reload: 2.0, spread: 0, rail: true, charge: 0.55, dmg: 4, wallPierce: true, len: 34, kick: 3, big: true, desc: 'A short charge, then an instant beam through every enemy, shield, crate and wall in its path.' },
 ];
 const WEAPON = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 

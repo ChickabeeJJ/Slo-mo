@@ -32,7 +32,7 @@ To play, serve the folder (for example `python3 -m http.server`) and open `index
 | Battle Rifle | Steady full auto with a tight spread |
 | Launcher | Arcing grenades that explode on impact (the splash can get you too) |
 | Minigun | Spins up before firing, slows you while it fires |
-| Railgun | A short 0.3 s charge, then an instant beam: goes through every enemy, shield, crate and wall in its path and one-shots anything |
+| Railgun | A 0.55 s charge, then an instant beam: goes through every enemy, shield, crate and wall in its path and one-shots anything |
 
 Shot barrels fizz and flash for a moment before exploding, and explosions chain into nearby barrels. Explosions are built from procedurally generated billow textures: a white-hot flash, a fireball that cools from white through orange to soot, rolling dark smoke, burning debris on smoke trails, motion-blurred sparks, a dust wave along the floor, embers and a pressure ring.
 
