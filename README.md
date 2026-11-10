@@ -32,7 +32,7 @@ To play, serve the folder (for example `python3 -m http.server`) and open `index
 | Battle Rifle | Steady full auto with a tight spread |
 | Launcher | Arcing grenades that explode on impact (the splash can get you too) |
 | Minigun | Spins up before firing, slows you while it fires |
-| Railgun | Hold to charge, release to fire straight through walls; one-shots anything |
+| Railgun | Instant beam, no charge-up: goes through every enemy, shield, crate and wall in its path and one-shots anything |
 
 Shot barrels fizz and flash for a moment before exploding, and explosions chain into nearby barrels. Explosions are built from procedurally generated billow textures: a white-hot flash, a fireball that cools from white through orange to soot, rolling dark smoke, burning debris on smoke trails, motion-blurred sparks, a dust wave along the floor, embers and a pressure ring.
 
@@ -61,6 +61,7 @@ Lowercase map chars face the player's side. UPPERCASE ones face away until they 
   - **Highrise:** pale blue rooms with big windows onto a city skyline, glass everywhere, sloped ceilings.
   - **After Hours:** dark rooms lit by lamp cones, neon signs, blinking server racks, more vents to slide through, more enemies.
 - **Difficulty:** climbs steadily across all 75 levels and through every Endless run. Enemies react sooner, telegraph for less time, turn faster, fire more often, aim tighter and shoot faster rounds, and rooms hold more of them (up to 9). Every enemy still shows its red sight line before firing.
+- **Daily Run:** unlocks after level 3. Five rooms seeded by the date, so they are the same for everyone that day and change at midnight UTC. Three lives, one score, today's best is saved, and the first clear each day pays a 150-coin bonus.
 - **Endless:** unlocks after level 3. You get three lives: losing one restarts the room you're in. It generates rooms forever, gets harder every room, rotates themes every 4 rooms and adds a Juggernaut every 6th room. It tracks your best score. When your last life is gone, a rewarded ad can buy one more (once per run).
 - **Armory:** 13 weapons, 9 colours and 13 hats (Headband, Beanie, Cap, Party Hat, Shades, Headphones, Visor, Cowboy, Top Hat, Horns, Crown, Halo), bought with coins. Prism (120 stars) and Halo (60 stars) unlock for free once you've earned that many stars; stars are never spent. Prism is a translucent, iridescent crystal finish with twinkling glints.
 - **Armour:** an Armor tab in the shop with 5 pieces for each slot (head, body, legs). Each piece absorbs a set number of hits per level: damage carries from room to room, resetting a room gives back the armour you entered that room with (any armour lost in the failed attempt comes back), and it's fully repaired when a level (or Endless run) starts. A hit lands on the slot it struck. A shotgun blast or one punch only costs one hit, and a piece that runs out breaks off. Helmets replace your hat while worn. A small HUD shows the hits left.
@@ -81,6 +82,10 @@ Deflect sends the blocked round straight back at whoever fired it.
 ## Levels
 
 Chapter 1 is handcrafted. The first level recreates the demo's tutorial rooms, with the instructions painted on the back wall: sprint, slide under a low vent and up the stairs, a gunman facing away, then slowing time against two gunmen. The rest of the campaign and Endless come from a seeded generator (`genRoom` in `js/levels.js`). It builds stairs, raised sections, sloped ceilings, slide tunnels, ledges, glass, cover crates, barrels and furniture, so every level always lays out the same. The map legend is at the top of `js/levels.js`. The generator keeps crate blocks clear of vent openings, and every campaign room plus a few hundred Endless rooms have been checked with a search that uses the real movement physics (sprint, jump, slide) to confirm the exit door can be reached from the spawn.
+
+## Privacy
+
+The privacy policy is shown in the game (Settings, Privacy Policy) and is also in `privacy.html`. The game stores only progress, on the device or through the CrazyGames data module, and has no ads or analytics.
 
 ## CrazyGames
 

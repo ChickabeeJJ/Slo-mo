@@ -25,6 +25,12 @@ const UI = (() => {
       if (!Save.endlessUnlocked()) { toast('Clear level 3 to unlock Endless', 'lock'); Sfx.denied(); return; }
       startEndless();
     };
+    $('btnDaily').onclick = () => {
+      click();
+      if (!Save.endlessUnlocked()) { toast('Clear level 3 to unlock the Daily Run', 'lock'); Sfx.denied(); return; }
+      startEndless(true);
+    };
+    Game.on('dailyDone', () => setTimeout(endEndlessRun, 650));
     $('btnArmory').onclick = () => { click(); show('armory'); };
     $('btnMissions').onclick = () => { click(); openMissions(); };
     $('btnSettings').onclick = () => { click(); openSettings(); };
@@ -87,6 +93,10 @@ const UI = (() => {
     $('levelsSub').textContent = Save.totalStars() + ' / ' + LEVEL_COUNT * 3 + ' STARS';
     $('endlessSub').textContent = Save.endlessUnlocked() ? 'BEST ' + fmt(d.endlessBest) : 'CLEAR LEVEL 3';
     $('btnEndless').classList.toggle('locked', !Save.endlessUnlocked());
+    const dr = Save.dailyRun();
+    $('dailySub').textContent = !Save.endlessUnlocked() ? 'CLEAR LEVEL 3' : dr.cleared ? 'TODAY\'S BEST ' + fmt(dr.best) : dr.best > 0 ? 'BEST ' + fmt(dr.best) + ' · NOT CLEARED YET' : '5 NEW ROOMS EVERY DAY';
+    $('btnDaily').classList.toggle('locked', !Save.endlessUnlocked());
+    $('dailyDot').classList.toggle('hidden', !Save.endlessUnlocked() || dr.cleared);
     $('missionDot').classList.toggle('hidden', !Save.missionsReady());
     $('streakChip').classList.toggle('hidden', !Save.streakState().claimable);
     const touch = document.body.classList.contains('touch');
@@ -321,10 +331,10 @@ const UI = (() => {
     Game.startLevel(i);
     applyTouchVisibility();
   }
-  function startEndless() {
+  function startEndless(daily) {
     closeModal();
     show(null);
-    Game.startEndless();
+    Game.startEndless(!!daily);
   }
   function quitToHome() {
     Platform.gameplayStop();
@@ -339,8 +349,9 @@ const UI = (() => {
     if (m === 'endless') {
       $('chipNum').innerHTML = '<span class="ic" data-icon="infinity"></span>';
       Icons.hydrate($('chipNum'));
-      $('chipTitle').textContent = 'ENDLESS';
-      $('chipSub').innerHTML = 'ROOM ' + (cur + 1) + ' <span class="hearts">' + [0, 1, 2].map(i => `<i class="${i < Game.lives ? 'on' : ''}"></i>`).join('') + '</span>';
+      const dly = Game.endless.daily;
+      $('chipTitle').textContent = dly ? 'DAILY RUN' : 'ENDLESS';
+      $('chipSub').innerHTML = 'ROOM ' + (cur + 1) + (dly ? '/' + Game.endless.len : '') + ' <span class="hearts">' + [0, 1, 2].map(i => `<i class="${i < Game.lives ? 'on' : ''}"></i>`).join('') + '</span>';
       $('roomDots').innerHTML = '';
     } else {
       $('chipNum').textContent = Game.levelIdx + 1;
@@ -456,29 +467,29 @@ const UI = (() => {
 
   function endEndlessRun() {
     const r = Game.endEndless();
-    const coins = Math.floor(r.score / 100) + r.rooms * 10;
+    const coins = Math.floor(r.score / 100) + r.rooms * 10 + (r.firstClear ? 150 : 0);
     Save.addCoins(coins);
     Platform.gameplayStop();
     openEndlessResults(r, coins);
   }
   function openEndlessResults(r, coins) {
     openModal('endless', `
-      <h2 class="${r.isBest ? 'win' : ''}">${r.isBest ? 'NEW BEST!' : 'RUN OVER'}</h2>
-      <p class="sub">ENDLESS</p>
+      <h2 class="${r.isBest || r.done ? 'win' : ''}">${r.daily && r.done ? 'DAILY CLEARED!' : r.isBest ? 'NEW BEST!' : 'RUN OVER'}</h2>
+      <p class="sub">${r.daily ? 'DAILY RUN · NEW ROOMS TOMORROW' : 'ENDLESS'}</p>
       <div class="res-score"><span>SCORE</span><b class="${r.isBest ? 'new' : ''}">${fmt(r.score)}</b></div>
       <div class="res-grid">
-        <div><b>${r.rooms}</b><small>ROOMS</small></div>
+        <div><b>${r.rooms}${r.daily ? '/' + r.len : ''}</b><small>ROOMS</small></div>
         <div><b>${r.kills}</b><small>KILLS</small></div>
         <div><b>${r.headshots}</b><small>HEADSHOTS</small></div>
-        <div><b>${fmt(Math.max(r.best, r.score))}</b><small>BEST</small></div>
+        <div><b>${fmt(Math.max(r.best, r.score))}</b><small>${r.daily ? 'TODAY\'S BEST' : 'BEST'}</small></div>
       </div>
-      <div class="coins-gain"><span class="ic coin" data-icon="coin"></span><span>+${coins}</span></div>
+      <div class="coins-gain"><span class="ic coin" data-icon="coin"></span><span>+${coins}</span>${r.firstClear ? '<small style="font-size:12px;color:var(--muted);margin-left:6px">DAILY CLEAR BONUS</small>' : ''}</div>
       <div class="actions">
-        <button class="btn primary wide" id="rAgain"><b>RUN AGAIN</b></button>
+        <button class="btn primary wide" id="rAgain"><b>${r.daily ? 'TRY AGAIN' : 'RUN AGAIN'}</b></button>
         <button class="btn" id="rHome"><b>HOME</b></button>
         <button class="btn" id="rArmory"><b>ARMORY</b></button>
       </div>`);
-    $('rAgain').onclick = () => { click(); startEndless(); };
+    $('rAgain').onclick = () => { click(); startEndless(r.daily); };
     $('rHome').onclick = () => { click(); quitToHome(); };
     $('rArmory').onclick = () => { click(); quitToHome(); show('armory'); };
   }
@@ -576,11 +587,38 @@ const UI = (() => {
       ${row('music', 'music', 'MUSIC')}
       ${row('shake', 'shake', 'SCREEN SHAKE')}
       ${row('aimAssist', 'target', 'TOUCH AIM ASSIST')}
+      <button class="btn" id="sPrivacy"><span class="ic" data-icon="shield"></span><b>PRIVACY POLICY</b></button>
       <button class="btn primary" id="sDone"><b>${fromPause ? 'BACK' : 'DONE'}</b></button>`);
+    $('sPrivacy').onclick = () => { click(); openPrivacy(fromPause); };
     $('sheet').querySelectorAll('.toggle').forEach(t => {
       t.onclick = () => { st[t.dataset.k] = !st[t.dataset.k]; Save.save(); applySettings(); t.classList.toggle('on', st[t.dataset.k]); click(); };
     });
     $('sDone').onclick = () => { click(); if (fromPause) { closeModal(); openPause(); } else closeModal(); };
+  }
+  // The privacy policy is shown inside the game (no outgoing links); privacy.html is the same text.
+  function openPrivacy(fromPause) {
+    openModal('privacy', `
+      <h2>PRIVACY POLICY</h2>
+      <div class="policy">
+        <p><b>Short version:</b> Slo-Mo does not collect, sell or share personal information.</p>
+        <h3>What the game stores</h3>
+        <p>Only your game progress: levels cleared, stars, coins, unlocked items, settings, daily missions and best scores. It contains no name, email address, location or contact details.</p>
+        <h3>Where it is stored</h3>
+        <p>On your own device, in your browser's local storage. When you play on CrazyGames, progress is saved through the CrazyGames data service so it can follow your CrazyGames account, if you have one.</p>
+        <h3>What the game does not do</h3>
+        <p>No ads, no analytics or tracking scripts, no third-party advertising cookies, no purchases, no chat and no account system of its own. The game never asks for personal information.</p>
+        <h3>The platform</h3>
+        <p>The website that hosts the game (for example CrazyGames) runs its own services and has its own privacy policy, which covers anything the platform itself collects. The game loads the CrazyGames SDK to report loading and gameplay events and to save progress.</p>
+        <h3>Children</h3>
+        <p>The game is suitable for a general audience and does not knowingly collect personal information from anyone, including children.</p>
+        <h3>Deleting your data</h3>
+        <p>Clearing this site's data in your browser removes all locally saved progress. Progress saved to a CrazyGames account can be managed from that account.</p>
+        <h3>Changes and contact</h3>
+        <p>If this policy changes, the updated text will appear here. Questions can be sent through the developer's page on the platform where you are playing.</p>
+        <p class="dim">Last updated: 10 November 2026</p>
+      </div>
+      <button class="btn primary" id="ppBack"><b>BACK</b></button>`);
+    $('ppBack').onclick = () => { click(); openSettings(fromPause); };
   }
   function applySettings() {
     const st = S().settings;

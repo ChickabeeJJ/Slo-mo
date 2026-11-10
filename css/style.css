@@ -476,3 +476,11 @@ body.touch .flip-charge { height: 2px; }
   body.result-open .sheet > .actions #rRetry { order: 2; }
   body.result-open .sheet > .actions #rNext { order: 3; }
 }
+
+/* ------------------------------------------------------------ privacy */
+.policy { display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; padding-right: 6px; font-weight: 500; font-size: 13px; line-height: 1.45; color: #cfd4e2; touch-action: pan-y; }
+.policy h3 { margin: 6px 0 0; font-weight: 900; font-size: 12px; letter-spacing: 0.1em; color: var(--acc); text-transform: uppercase; }
+.policy p { margin: 0; }
+.policy b { color: var(--text); }
+.policy .dim { color: var(--muted); font-size: 11px; margin-top: 4px; }
+.sheet .btn .ic { width: 16px; height: 16px; margin-right: 6px; }

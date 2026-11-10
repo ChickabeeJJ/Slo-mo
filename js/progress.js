@@ -16,6 +16,7 @@ const Save = (() => {
     armors: [], armor: { head: null, body: null, legs: null },
     settings: { sfx: true, music: true, shake: true, aimAssist: true },
     endlessBest: 0, endlessRooms: 0,
+    dailyRun: { day: -1, best: 0, cleared: false },
     stats: { kills: 0, headshots: 0, deaths: 0, levels: 0, slowKills: 0, deflects: 0 },
     daily: { day: -1, list: [], bonus: false },
     streak: { day: -1, count: 0, claimedDay: -1 },
@@ -34,6 +35,7 @@ const Save = (() => {
         data.stats = Object.assign(fresh().stats, d.stats || {});
         data.daily = Object.assign(fresh().daily, d.daily || {});
         data.streak = Object.assign(fresh().streak, d.streak || {});
+        data.dailyRun = Object.assign(fresh().dailyRun, d.dailyRun || {});
         for (const k of ['weapons', 'skins', 'hats', 'armors']) if (!Array.isArray(data[k])) data[k] = fresh()[k];
         data.armor = Object.assign(fresh().armor, d.armor || {});
       }
@@ -93,6 +95,16 @@ const Save = (() => {
   function unequipArmor(slot) { data.armor[slot] = null; save(); }
 
   /* ------------------------------------------------------------- missions */
+  // today's Daily Run record (it resets when the date changes)
+  function dailyRun() {
+    if (data.dailyRun.day !== dayIndex()) data.dailyRun = { day: dayIndex(), best: 0, cleared: false };
+    return data.dailyRun;
+  }
+  function recordDailyRun(score, cleared) {
+    const d = dailyRun();
+    d.best = Math.max(d.best, score); d.cleared = d.cleared || !!cleared;
+    save();
+  }
   function rollDaily() {
     const day = dayIndex();
     if (data.daily.day === day && data.daily.list.length) return;
@@ -150,7 +162,7 @@ const Save = (() => {
   }
 
   return {
-    load, save, get data() { return data; }, totalStars, levelUnlocked, nextLevel, endlessUnlocked, addCoins, recordLevel,
+    load, save, dailyRun, recordDailyRun, get data() { return data; }, totalStars, levelUnlocked, nextLevel, endlessUnlocked, addCoins, recordLevel,
     owns, buy, equip, unequipArmor, canUnlockFree, itemOf, rollDaily, track, claimMission, claimBonus, allClaimed, missionsReady,
     streakState, claimStreak, STREAK,
   };

@@ -15,9 +15,9 @@ Slo-Mo is a fast, stylish 2D shooter where you control time. Burst through doors
 
 Enemies don't just fall over. They crumple, spin and tumble as full physics ragdolls, and crates, glass and explosive barrels react to every shot. Chain kills together for combos, earn style bonuses for headshots, flip kills, slide kills and multi kills, and race the clock for three stars on every level.
 
-Fight through 75 handcrafted levels across five chapters, from the white test rooms of Orientation to the offices, warehouse, highrise and the dark of After Hours. Face nine enemy types, including riot shields, knife rushers, grenadiers and armoured brutes, and watch your back for ambushes. When the campaign is done, take on Endless mode with three lives and see how far you can go.
+Fight through 75 handcrafted levels across five chapters, from the white test rooms of Orientation to the offices, warehouse, highrise and the dark of After Hours. Face nine enemy types, including riot shields, knife rushers, grenadiers and armoured brutes, and watch your back for ambushes. When the campaign is done, take on Endless mode with three lives and see how far you can go, or play the Daily Run: five fresh rooms every day that are the same for every player.
 
-Spend your coins in the Armory on 13 weapons with their own tricks, such as ricochet rounds, homing seekers, a railgun that punches through walls and a grenade launcher. Pick up 15 pieces of head, body and leg armour, some with special abilities like shot deflection, plus colours and hats to make the runner your own. Daily missions and a daily login streak keep the rewards coming.
+Spend your coins in the Armory on 13 weapons with their own tricks, such as ricochet rounds, homing seekers, a railgun that fires an instant beam through every enemy and wall in its path and a grenade launcher. Pick up 15 pieces of head, body and leg armour, some with special abilities like shot deflection, plus colours and hats to make the runner your own. Daily missions and a daily login streak keep the rewards coming.
 
 How to play
 Reach the exit of each room. Clearing the enemies is optional but earns points and style. Use slow motion when the bullets start flying, keep moving, and don't get hit. Sprint or slide, then jump to front-flip. Flipping reloads your gun, and you can chain up to three flips before you need to land.
@@ -43,6 +43,7 @@ Slow, Jump, Slide and Reload buttons on the right, and a Grab button when you st
 
 Features
 75 handcrafted levels in 5 chapters, plus Endless mode with 3 lives
+Daily Run: five new rooms every day, the same for every player
 Bullet time with full physics ragdolls and destructible crates, glass and barrels
 Slides, front flips and flip chains that reload your gun
 9 enemy types and surprise ambushes

@@ -19,7 +19,7 @@ const Game = (() => {
   let paused = false;
   let level = null, levelIdx = 0, roomIdx = 0, room = null;
   let ambushes = [], grenades = [];
-  let player = null, enemies = [], bullets = [], pieces = [], corpses = [], pickups = [], crates = [], barrels = [], panes = [], ghosts = [], pendingBooms = [];
+  let player = null, enemies = [], bullets = [], pieces = [], corpses = [], pickups = [], crates = [], barrels = [], panes = [], ghosts = [], pendingBooms = [], beams = [];
   let ts = 1, slowOn = false, focus = 1, forcedT = 0, forcedScale = 1, hitstop = 0, closeCd = 0, heartT = 0, ghostT = 0;
   let clock = 0, roomT = 0, runTime = 0, deathT = 0, fade = null, doorOpen = false, clearT = -1, flash = 0, flashCol = '#ffffff';
   let run = null;               // per-level / per-endless-run stats
@@ -47,7 +47,7 @@ const Game = (() => {
     canvas.style.width = sw + 'px'; canvas.style.height = sh + 'px';
   }
 
-  const diff = () => (mode === 'endless' ? clamp(0.25 + endless.n * 0.06, 0, 1) : mode === 'campaign' ? levelDiff(levelIdx) : 0.3);
+  const diff = () => (mode === 'endless' ? clamp(endless.daily ? 0.35 + endless.n * 0.11 : 0.25 + endless.n * 0.06, 0, 1) : mode === 'campaign' ? levelDiff(levelIdx) : 0.3);
 
   function newRun() {
     return { score: 0, kills: 0, headshots: 0, deaths: 0, combo: 0, comboT: 0, bestCombo: 0, deflects: 0, time: 0, rooms: 0, lives: 3 };
@@ -67,7 +67,7 @@ const Game = (() => {
   };
   let menuT = 0, menuEnemyT = 0;
   function startMenu() {
-    mode = 'menu'; state = 'menu'; paused = false;
+    mode = 'menu'; state = 'menu'; paused = false; fade = null; forcedT = 0; hitstop = 0;
     level = { name: 'Menu', theme: 0, rooms: [MENU_MAP] };
     room = new Room(MENU_MAP, 0);
     resetRoomEntities();
@@ -89,7 +89,7 @@ const Game = (() => {
   }
 
   function startLevel(i) {
-    mode = 'campaign'; levelIdx = i; level = getLevel(i);
+    mode = 'campaign'; levelIdx = i; level = getLevel(i); fade = null;   // drop any door fade left from the last run
     run = newRun();
     focus = 1; slowOn = false;
     loadRoom(0);
@@ -98,11 +98,13 @@ const Game = (() => {
     Sfx.setMusicPaused(false);
     emit('start');
   }
-  function startEndless() {
-    mode = 'endless';
-    endless = { seed: (Date.now() % 100000) | 0, n: 0 };
+  // Daily Run: the same five rooms for everyone today (seeded by the date), three lives, one score
+  const DAILY_ROOMS = 5;
+  function startEndless(daily) {
+    mode = 'endless'; fade = null;
+    endless = daily ? { seed: (dayIndex() * 7919 + 101) % 1000003, n: 0, daily: true, len: DAILY_ROOMS } : { seed: (Date.now() % 100000) | 0, n: 0 };
     run = newRun();
-    level = { name: 'Endless', theme: 0, rooms: [] };
+    level = { name: daily ? 'Daily Run' : 'Endless', theme: 0, rooms: [] };
     focus = 1; slowOn = false;
     loadRoom(0);
     state = 'play'; paused = false;
@@ -116,6 +118,7 @@ const Game = (() => {
   let godMode = false, zoomK = 1;       // capture-tool only
   let roomFocus = 1, roomPickup = null, roomArmor = null;     // what you walked into the room with
   function loadRoom(i) {
+    if (mode === 'campaign' && !level.rooms[i]) i = level.rooms.length - 1;
     roomIdx = i;
     roomFocus = i === 0 && mode === 'campaign' ? 1 : focus;    // a retry starts with what you walked in with
     roomPickup = i > 0 && player && player.alive && player.pickup ? { id: player.pickup.id, ammo: player.pickup.ammo } : null;
@@ -127,7 +130,7 @@ const Game = (() => {
   }
 
   function resetRoomEntities() {
-    enemies = []; bullets = []; grenades = []; pieces = []; corpses = []; pickups = []; ghosts = []; pendingBooms = [];
+    enemies = []; bullets = []; grenades = []; pieces = []; corpses = []; pickups = []; ghosts = []; pendingBooms = []; beams = [];
     room.decals = [];
     doorAnim = 0;
     Fx.clear();
@@ -411,6 +414,8 @@ const Game = (() => {
       ghosts.push({ pts: player.body.pts.map(p => ({ x: p.x, y: p.y })), t: 0, col: player.body.color });
     }
     for (const g of ghosts) g.t += dtReal;
+    for (const m of beams) m.t += dtReal * (ts < 0.6 ? 0.5 : 1);
+    if (beams.length && beams[0].t > 0.5) beams = beams.filter(m => m.t <= 0.5);
     ghosts = ghosts.filter(g => g.t < 0.28);
 
     if (state !== 'menu') Fx.update(wdt, room, panes);
@@ -508,7 +513,7 @@ const Game = (() => {
     if (input.touch && Math.abs(input.axis) > 0.15) mx = input.axis;
     const sprint = input.sprint || (input.touch && Math.abs(input.axis) > 0.88);
     p.sprinting = sprint && Math.abs(mx) > 0.1;
-    const spinning = (p.pickup || p.weapon).spin > 0.05 || ((p.pickup || p.weapon).chargeT || 0) > 0.05;
+    const spinning = (p.pickup || p.weapon).spin > 0.05;
     if (spinning) p.sprinting = false;
     const swift = p.armorHp && p.armorHp.legs && ARMOR_BY[p.armorHp.legs.id].ability === 'swift' ? 1.07 : 1;
     const want = swift * mx * (p.sprinting ? SPRINT : WALK) * (spinning && w.heavy ? 0.45 : spinning ? 0.7 : 1);
@@ -652,17 +657,7 @@ const Game = (() => {
       if (holding && pw.spin < 1 && Math.floor(was * 6) !== Math.floor(pw.spin * 6)) Sfx.spin(pw.spin);
     } else pw.spin = 0;
     let wantShoot;
-    if (w.charge) {
-      // railgun: hold to charge, release to fire
-      if (holding && ready && pw.cd <= 0) {
-        const was = pw.chargeT || 0;
-        pw.chargeT = was + dt;
-        if (was < w.charge && pw.chargeT >= w.charge) Sfx.charged();
-        else if (Math.floor(was * 8) !== Math.floor(pw.chargeT * 8) && pw.chargeT < w.charge) Sfx.spin(pw.chargeT / w.charge);
-      }
-      wantShoot = !holding && (pw.chargeT || 0) >= w.charge;
-      if (!holding && (pw.chargeT || 0) < w.charge) pw.chargeT = 0;
-    } else if (w.spinup) wantShoot = holding && pw.spin >= 1;
+    if (w.spinup) wantShoot = holding && pw.spin >= 1;
     else wantShoot = input.touch ? holding || input.shootBuf > 0 : (w.auto ? input.shoot : input.shootBuf > 0);
     // burst follow-up rounds
     if (pw.burstLeft > 0) {
@@ -683,7 +678,6 @@ const Game = (() => {
           if (w.burst) { p.weapon.burstLeft = w.burst - 1; p.weapon.burstT = w.burstGap; }
         } else { Sfx.dry(); startReload(); pw.cd = 0.2; }
       }
-      pw.chargeT = 0;
     }
     if (!p.pickup && p.weapon.ammo <= 0 && !(p.weapon.burstLeft > 0) && p.weapon.reloadT <= 0) startReload();
 
@@ -848,6 +842,8 @@ const Game = (() => {
         x: mz.x, y: mz.y, ox: mz.x, oy: mz.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, owner: 'p', pierce: 0, life: w.life || 2.4, t: 0, hits: [], shooter: c,
         big: !!w.big, kind: w.id, dmg: w.dmg || 1, bounce: w.bounce || 0, homing: w.homing || 0, g: w.gravity || 0, blast: w.blast || 0, split: w.split || null, wallPierce: !!w.wallPierce,
       });
+      // railgun: an instant beam that goes through every body, crate, shield and wall in its path
+      if (w.rail) { const rb = bullets[bullets.length - 1]; rb.rail = true; rb.pierce = Infinity; }
     }
     if (second) c.weapon.kick2 = (w.kick || 1); else c.weapon.kick = (w.kick || 1);
     c.body.shove(-Math.cos(c.aim) * 60 * (w.kick || 1), -Math.sin(c.aim) * 60 * (w.kick || 1), J.FHAND);
@@ -1122,6 +1118,7 @@ const Game = (() => {
     }
   }
   let spawned = [];
+  const RAIL_RANGE = 2600;
 
   function updateBullets(dt) {
     const keep = [];
@@ -1131,11 +1128,13 @@ const Game = (() => {
       if (b.t > b.life) { if (b.blast) explode(b.x, b.y, b.blast, true); continue; }
       steerBullet(b, dt);
       const sp = Math.hypot(b.vx, b.vy);
-      const steps = Math.max(1, Math.ceil(sp * dt / 6));
+      // a rail slug crosses the whole room in the frame it is fired (even in slow motion)
+      const bdt = b.rail ? RAIL_RANGE / (sp || 1) : dt;
+      const steps = Math.max(1, Math.ceil(sp * bdt / 6));
       const ux = b.vx / (sp || 1), uy = b.vy / (sp || 1);
       let alive = true;
       for (let s = 0; s < steps && alive; s++) {
-        const nx = b.x + b.vx * dt / steps, ny = b.y + b.vy * dt / steps;
+        const nx = b.x + b.vx * bdt / steps, ny = b.y + b.vy * bdt / steps;
         // deflect: player rounds knock enemy rounds out of the air
         if (b.owner === 'p' && !b.blast) {
           for (const o of bullets) {
@@ -1155,7 +1154,7 @@ const Game = (() => {
         }
         if (b.owner === 'p') {
           for (const gr of grenades) if (!gr.dead && Math.hypot(gr.x - nx, gr.y - ny) < 10) {
-            gr.dead = true; alive = false; explode(gr.x, gr.y - 6, gr.R, true, false); styleEvent(gr.x, gr.y, 'DEFUSED', 80);
+            gr.dead = true; if (!b.rail) alive = false; explode(gr.x, gr.y - 6, gr.R, true, false); styleEvent(gr.x, gr.y, 'DEFUSED', 80);
             break;
           }
           if (!alive) break;
@@ -1246,6 +1245,7 @@ const Game = (() => {
         }
         b.x = nx; b.y = ny;
       }
+      if (b.rail) { beams.push({ x1: b.ox, y1: b.oy, x2: b.x, y2: b.y, t: 0 }); continue; }
       if (alive && !b.dead) keep.push(b);
     }
     bullets = keep.concat(spawned);
@@ -1464,6 +1464,7 @@ const Game = (() => {
       run.rooms++;
       if (mode === 'endless') { endless.n++; track('endlessRooms'); Save.data.endlessRooms++; }
       if (last) { completeLevel(); return; }
+      if (mode === 'endless' && endless.daily && endless.n >= endless.len) { state = 'complete'; Sfx.win(); emit('dailyDone'); return; }
       fade = { phase: 'out', t: 0, cb: () => { loadRoom(roomIdx + 1); emit('room'); } };
     }
   }
@@ -1504,6 +1505,12 @@ const Game = (() => {
   }
   function endEndless() {
     state = 'over';
+    if (endless.daily) {
+      const d = Save.dailyRun();
+      const res = { daily: true, done: endless.n >= endless.len, len: endless.len, score: run.score, rooms: endless.n, kills: run.kills, best: d.best, isBest: run.score > d.best, firstClear: endless.n >= endless.len && !d.cleared, time: run.time, headshots: run.headshots };
+      Save.recordDailyRun(run.score, res.done);
+      return res;
+    }
     const best = Save.data.endlessBest;
     const res = { score: run.score, rooms: endless.n, kills: run.kills, best, isBest: run.score > best, time: run.time, headshots: run.headshots };
     if (res.isBest) { Save.data.endlessBest = run.score; Save.save(); Platform.submitScore(run.score); }
@@ -1616,7 +1623,28 @@ const Game = (() => {
     if (k > 0.6) Glow.draw(ctx, '#ff3344', m.x, m.y, 10 + k * 8, k * 0.8);
     if (d.laser) Glow.draw(ctx, '#ff3344', tx, ty, 8, a);
   }
+  function drawBeams() {
+    for (const m of beams) {
+      const k = 1 - m.t / 0.45; if (k <= 0) continue;
+      const e = k * k;
+      ctx.lineCap = 'round';
+      ctx.globalAlpha = e * 0.35; ctx.strokeStyle = '#58e1ff'; ctx.lineWidth = 26 * k + 4;
+      ctx.beginPath(); ctx.moveTo(m.x1, m.y1); ctx.lineTo(m.x2, m.y2); ctx.stroke();
+      ctx.globalAlpha = e * 0.8; ctx.strokeStyle = '#9fe9ff'; ctx.lineWidth = 9 * k + 1.5;
+      ctx.beginPath(); ctx.moveTo(m.x1, m.y1); ctx.lineTo(m.x2, m.y2); ctx.stroke();
+      ctx.globalAlpha = Math.min(1, e * 1.4); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3.5 * k + 0.5;
+      ctx.beginPath(); ctx.moveTo(m.x1, m.y1); ctx.lineTo(m.x2, m.y2); ctx.stroke();
+      // rings thrown off along the rail, widening as the beam fades
+      const L = Math.hypot(m.x2 - m.x1, m.y2 - m.y1) || 1, ux = (m.x2 - m.x1) / L, uy = (m.y2 - m.y1) / L;
+      ctx.globalAlpha = e * 0.7; ctx.strokeStyle = '#bfefff'; ctx.lineWidth = 1.6;
+      for (let d = 70; d < L; d += 150) {
+        ctx.beginPath(); ctx.ellipse(m.x1 + ux * d, m.y1 + uy * d, 3 + (1 - k) * 7, 8 + (1 - k) * 20, Math.atan2(uy, ux), 0, TAU); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
   function drawBullets() {
+    drawBeams();
     for (const b of bullets) {
       const sp = Math.hypot(b.vx, b.vy), ux = b.vx / sp, uy = b.vy / sp;
       if (!(sp > 0) || !Number.isFinite(b.x + b.y + b.ox + b.oy)) continue;   // never let one bad bullet kill the frame
@@ -1884,7 +1912,7 @@ const Game = (() => {
     set paused(v) { paused = v; },
     get focus() { return focus; }, get slowOn() { return slowOn; }, get ts() { return ts; },
     get run() { return run; }, get level() { return level; }, get levelIdx() { return levelIdx; }, get roomIdx() { return roomIdx; },
-    get roomCount() { return mode === 'endless' ? endless.n + 1 : level.rooms.length; },
+    get roomCount() { return mode === 'endless' ? (endless.daily ? endless.len : endless.n + 1) : level.rooms.length; },
     get armorState() { return player && player.armorHp ? ['head', 'body', 'legs'].map(s => player.armorHp[s] ? Object.assign({ slot: s }, player.armorHp[s]) : null) : []; },
     get endless() { return endless; }, get lives() { return run ? run.lives : 0; },
     get room() { return room; }, get player() { return player; }, get enemiesLeft() { return enemies.filter(e => e.alive).length; },
