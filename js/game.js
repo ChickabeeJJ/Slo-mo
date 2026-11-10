@@ -1916,7 +1916,7 @@ const Game = (() => {
     // ammo / reload ring
     if (!player.pickup && player.weapon.reloadT > 0) {
       const k = 1 - player.weapon.reloadT / WEAPON[player.weapon.id].reload;
-      ctx.strokeStyle = '#ffc933'; ctx.lineWidth = 3;
+      ctx.strokeStyle = '#45dcff'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(0, 0, r + 12, -Math.PI / 2, -Math.PI / 2 + k * TAU); ctx.stroke();
     } else {
       const mag = player.pickup ? Math.max(ws.ammo, 1) : w.mag;
