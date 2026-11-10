@@ -352,7 +352,7 @@ const UI = (() => {
   }
 
   /* -------------------------------------------------------------- hud */
-  let lastAmmoKey = '', lastArmorKey = '', lastFlips = -1, flipAnimT = 0;
+  let lastAmmoKey = '', lastArmorKey = '', lastFlips = -1, flipAnimT = 0, lastBlTop = '';
   function tick(dt) {
     previewT += dt;
     if (screen === 'armory') renderPreview(previewT);
@@ -386,6 +386,13 @@ const UI = (() => {
         $('ammo').classList.toggle('reloading', w.reload);
         $('ammoHint').innerHTML = w.pickup ? 'NO RELOAD · DROPS WHEN EMPTY' : '<kbd>R</kbd> RELOAD';
       }
+    }
+    // touch: the armour / flip stack sits 5px under the level chip, whatever size the chip is
+    if (document.body.classList.contains('touch')) {
+      const cb = $('stageChip').getBoundingClientRect().bottom;
+      const ui = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ui')) || 1;
+      const top = Math.round((cb + 5) / ui) + 'px';
+      if (top !== lastBlTop) { lastBlTop = top; document.documentElement.style.setProperty('--blTop', top); }
     }
     // flip counter: pips for flips left, a bar that fills while you're grounded, then they all pop back
     const fi = Game.flipInfo;

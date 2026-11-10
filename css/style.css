@@ -429,7 +429,7 @@ body.touch .home-hint { display: none; }
 /* bottom-left stack: armour sits right on top of the slow-mo bar and the flip counter */
 .hud-bl { position: absolute; left: calc(16px + var(--safe-l)); bottom: calc(16px + var(--safe-b)); display: flex; flex-direction: column; gap: 5px; pointer-events: none; }
 .hud-bl-row { display: flex; gap: 5px; align-items: stretch; }
-body.touch .hud-bl { bottom: auto; top: calc(66px + var(--safe-t)); transform: scale(0.9); transform-origin: left top; }
+body.touch .hud-bl { bottom: auto; top: var(--blTop, 60px); transform: scale(0.9); transform-origin: left top; flex-direction: column-reverse; }   /* flips on top, armour under */
 /* touch: a compact flip counter the same height as the armour bar */
 body.touch .flips { padding: 5px 10px 5px 8px; gap: 6px; clip-path: var(--cut-s); }
 body.touch .flips > .ic { width: 16px; height: 16px; }
@@ -469,3 +469,10 @@ body.touch .flip-charge { height: 2px; }
    (--ui is set from JS: 1 up to 1.75), so a 1080p or 4K screen isn't left with tiny UI. */
 :root { --ui: 1; }
 .screen > *, .modal .sheet, #toasts, #hud > :not(.joy):not(.tapfire), #rotate > div { zoom: var(--ui); }
+
+/* phones: NEXT LEVEL goes where the right thumb is, LEVELS moves to the left */
+@media (max-height: 520px) and (min-width: 560px) {
+  body.result-open .sheet > .actions #rLevels { order: 1; }
+  body.result-open .sheet > .actions #rRetry { order: 2; }
+  body.result-open .sheet > .actions #rNext { order: 3; }
+}
