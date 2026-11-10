@@ -153,8 +153,8 @@ const Game = (() => {
     clearT = -1; roomT = 0; deathT = 0;
     forcedT = 0; hitstop = 0;
   }
-  // Armour durability lasts a whole level (or Endless run): damage carries from room to room and
-  // through deaths and retries, and it's only fully repaired when a level starts.
+  // Armour durability lasts a whole level (or Endless run): damage carries from room to room, a room
+  // reset gives back exactly what you walked into that room with, and a new level repairs it fully.
   function applyArmor(p, snap) {
     p.armorHp = {}; p.blastUsed = snap ? snap.blastUsed : false; p.armorInv = 0;
     const show = {}, broken = {};
@@ -1484,8 +1484,6 @@ const Game = (() => {
     if (!force && state === 'dead' && deathT < RETRY_DELAY) return;
     fade = {
       phase: 'out', t: 0.12, cb: () => {
-        // armour keeps the damage it took before you died (repaired only when a new level starts)
-        if (mode !== 'menu' && player && player.armorHp) roomArmor = { slots: JSON.parse(JSON.stringify(player.armorHp)), blastUsed: player.blastUsed };
         resetRoomEntities(); snapCamera(); state = 'play'; slowOn = false; focus = roomFocus;
         emit('respawn');
       },
