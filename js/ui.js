@@ -52,6 +52,7 @@ const UI = (() => {
     Game.on('kill', k => { if (k.combo > 1) { const b = $('comboNum'); b.textContent = 'x' + k.combo; b.style.animation = 'none'; void b.offsetWidth; b.style.animation = ''; } });
 
     setupTouch();
+    TitleFx.init();
     applySettings();
     applyUiScale();
     show('home');

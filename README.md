@@ -124,6 +124,7 @@ js/ragdoll.js     blocky active-ragdoll bodies, death ragdolls, loose limb block
 js/fx.js          sparks, dust, glass, shell casings, muzzle flashes, style popups
 js/game.js        player, enemy AI, bullets, slow motion, scoring, camera, rendering
 js/icons.js       UI icons
+js/titlefx.js     the home-screen title sequence: a bullet-time shot through the logo on a canvas overlay
 js/ui.js          home, levels, armory, missions, settings, pause, results, HUD, touch
 js/main.js        boot, loop, keyboard/mouse
 assets/fonts/     Rubik (SIL Open Font License)
