@@ -235,8 +235,10 @@ body.dark-room .hud-mid { color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); 
 .ammo b { font-weight: 900; font-size: 13px; letter-spacing: 0.08em; color: var(--muted); }
 .ammo.pickup b { color: var(--acc); }
 .ammo-row { display: flex; align-items: center; gap: 10px; }
-.pips { display: flex; gap: 2px; flex-wrap: wrap; justify-content: flex-end; max-width: 130px; }
-.pips i { width: 4px; height: 14px; border-radius: 1px; background: var(--acc); }
+/* always one row: big magazines get thinner pips instead of wrapping onto a second line */
+.pips { display: flex; gap: 2px; flex-wrap: nowrap; justify-content: flex-end; width: 130px; }
+.pips i { flex: 0 1 4px; min-width: 1.5px; height: 14px; border-radius: 1px; background: var(--acc); }
+.pips.dense { gap: 2px; } .pips.dense i { flex: 0 0 2px; min-width: 2px; border-radius: 0.5px; }
 .pips i.off { background: rgba(255, 255, 255, 0.15); }
 #ammoNum { font-weight: 900; font-size: 26px; line-height: 1; min-width: 28px; text-align: right; }
 .ammo small { font-weight: 800; font-size: 10px; letter-spacing: 0.08em; color: var(--muted); display: flex; gap: 6px; align-items: center; }

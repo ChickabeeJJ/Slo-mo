@@ -393,6 +393,7 @@ const UI = (() => {
         $('ammoName').textContent = w.name.toUpperCase();
         $('ammoNum').textContent = w.reload ? '...' : w.ammo;
         const mag = w.mag || w.ammo;
+        $('ammoPips').classList.toggle('dense', mag > 20);
         $('ammoPips').innerHTML = mag <= 30 ? Array.from({ length: mag }, (_, i) => `<i class="${i < w.ammo && !w.reload ? '' : 'off'}"></i>`).join('') : '';
         $('ammo').classList.toggle('pickup', w.pickup);
         $('ammo').classList.toggle('reloading', w.reload);
