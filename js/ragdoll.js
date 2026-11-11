@@ -422,6 +422,7 @@ function limb(ctx, ax, ay, bx, by, th, dz, col, ext = 1) {
   prism(ctx, [[x0 + nx, y0 + ny], [x1 + nx, y1 + ny], [x1 - nx, y1 - ny], [x0 - nx, y0 - ny]], ZP - dz, ZP + dz, col, shade(col, 0.16), shade(col, -0.14), shade(col, -0.24));
 }
 
+const FACE_HATS = new Set(['band', 'shades', 'phones', 'visor']);     // worn on the face / ears, not on top
 function drawHead(ctx, neck, head, size, col, body, f) {
   const dx = head.x - neck.x, dy = head.y - neck.y, l = Math.hypot(dx, dy) || 1;
   const ux = dx / l, uy = dy / l;
@@ -438,7 +439,11 @@ function drawHead(ctx, neck, head, size, col, body, f) {
   }
   const helm = body.armor && !body.dead && body.armor.head && !(body.armorBroken || {}).head ? body.armor.head : null;
   if (helm) drawHelmet(ctx, helm, cx, cy, ux, uy, size, f);
-  else if (body.hat && body.hat !== 'none' && !body.dead) drawHat(ctx, body.hat, cx, cy, ux, uy, size, f);
+  // hats are worn with head armour too: ones that sit on top of the head ride on top of the helmet
+  if (body.hat && body.hat !== 'none' && !body.dead) {
+    const lift = helm && !FACE_HATS.has(body.hat) ? size * 0.2 : 0;
+    drawHat(ctx, body.hat, cx + ux * lift, cy + uy * lift, ux, uy, size, f);
+  }
 }
 
 function drawHat(ctx, hat, cx, cy, ux, uy, size, f) {
