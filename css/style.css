@@ -614,3 +614,17 @@ body.touch .flip-charge { height: 2px; }
   .home-menu .btn-row .btn { font-size: 11px; }
   .btn.mode small { font-size: 9px; }
 }
+
+/* ------------------------------------------------------------ breach */
+.breach-banner { position: absolute; left: 50%; top: 24%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; opacity: 0; }
+.breach-banner b { padding: 4px 26px 6px 22px; font-weight: 900; font-size: 46px; letter-spacing: 0.12em; color: var(--acc-ink); background: var(--acc);
+  clip-path: polygon(10px 0, calc(100% - 14px) 0, calc(100% - 2px) calc(100% - 10px), calc(100% - 10px) 100%, 14px 100%, 2px 10px); filter: drop-shadow(-8px 0 0 rgba(var(--acc-rgb), 0.35)); }
+.breach-banner small { font-weight: 900; font-size: 12px; letter-spacing: 0.16em; color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+.breach-banner.go { animation: breachIn 1.6s cubic-bezier(.1, .8, .2, 1) forwards; }
+@keyframes breachIn {
+  0% { opacity: 0; transform: translateX(-50%) scale(1.8) skewX(-18deg); filter: blur(6px); }
+  12% { opacity: 1; transform: translateX(-50%) scale(1) skewX(0); filter: none; }
+  75% { opacity: 1; transform: translateX(-50%) scale(1.04); }
+  100% { opacity: 0; transform: translateX(-30%) scale(1.04); }
+}
+body.touch .breach-banner b { font-size: 30px; }

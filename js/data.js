@@ -121,6 +121,7 @@ const MISSION_POOL = [
   { id: 'endless', text: 'Clear {n} rooms in Endless', stat: 'endlessRooms', n: [5, 9], reward: 120 },
   { id: 'multi', text: 'Get {n} multi-kills', stat: 'multis', n: [2, 4], reward: 130 },
   { id: 'flip', text: 'Get {n} kills during a flip', stat: 'flipKills', n: [2, 4], reward: 130 },
+  { id: 'breach', text: 'Get {n} breach kills', stat: 'breachKills', n: [4, 8], reward: 110 },
 ];
 
 // Kill style table: label shown in the popup and score bonus on top of the base 100.

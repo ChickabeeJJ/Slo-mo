@@ -17,7 +17,7 @@ const Save = (() => {
     settings: { sfx: true, music: true, shake: true, aimAssist: true },
     endlessBest: 0, endlessRooms: 0,
     dailyRun: { day: -1, best: 0, cleared: false },
-    stats: { kills: 0, headshots: 0, deaths: 0, levels: 0, slowKills: 0, deflects: 0 },
+    stats: { kills: 0, headshots: 0, deaths: 0, levels: 0, slowKills: 0, deflects: 0, breachKills: 0 },
     daily: { day: -1, list: [], bonus: false },
     streak: { day: -1, count: 0, claimedDay: -1 },
     seenIntro: false,
