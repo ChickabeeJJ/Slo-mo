@@ -745,7 +745,7 @@ const Game = (() => {
     p.body.gunId = ww.id;
     p.body.dual = !!ww.dual;
     p.body.pose({
-      kick: p.kickT > 0 ? 1 - p.kickT / KICK_DUR : null,
+      legKick: p.kickT > 0 ? 1 - p.kickT / KICK_DUR : null,
       x: poseX, y: p.y, facing: p.facing, aim: p.aim, vx: p.vx, vy: p.vy, grounded: p.grounded || p.airSlide, slide: sliding, flip: p.flipping ? p.flip * p.flipDir : 0,
       sprint: p.sprinting, gun: true, twoHand: TWO_HAND.has(ww.id), dual: ww.dual, kick: p.weapon.kick, kick2: p.weapon.kick2,
       slideFront, slideBack, slope: p.slopeS,
