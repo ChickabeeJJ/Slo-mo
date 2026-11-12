@@ -593,7 +593,7 @@ const UI = (() => {
       ${row('music', 'music', 'MUSIC')}
       ${row('shake', 'shake', 'SCREEN SHAKE')}
       ${row('aimAssist', 'target', 'TOUCH AIM ASSIST')}
-      <button class="btn" id="sPrivacy"><span class="ic" data-icon="shield"></span><b>PRIVACY POLICY</b></button>
+      <button class="btn" id="sPrivacy"><b>PRIVACY POLICY</b></button>
       <button class="btn primary" id="sDone"><b>${fromPause ? 'BACK' : 'DONE'}</b></button>`);
     $('sPrivacy').onclick = () => { click(); openPrivacy(fromPause); };
     $('sheet').querySelectorAll('.toggle').forEach(t => {
