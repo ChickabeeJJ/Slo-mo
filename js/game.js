@@ -1882,6 +1882,7 @@ const Game = (() => {
   // blast warning on the floor: a red zone that fills in as the fuse burns, a rotating dashed edge
   // and a countdown arc, so you always know where not to stand and how long you have
   function drawBlastZone(x, gy, R, k) {
+    k = clamp(Number.isFinite(k) ? k : 0, 0, 1);          // a kicked barrel burns longer than a shot one
     ctx.save(); ctx.translate(x, gy); ctx.scale(1, 0.13);
     const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
     g.addColorStop(0, `rgba(255,51,68,${0.1 + 0.3 * k})`); g.addColorStop(1, `rgba(255,51,68,${0.05 + 0.12 * k})`);
@@ -1926,7 +1927,7 @@ const Game = (() => {
   // A matte drum built as a real cylinder: 14 flat-shaded facets around a vertical axis in depth,
   // a lid seen from above, two ribs and a single white mark on the face toward you.
   function drawBarrel(br) {
-    const lit = br.fuse >= 0 ? 1 - br.fuse / 0.34 : 0;
+    const lit = br.fuse >= 0 ? clamp(1 - br.fuse / (br.flying ? 1.6 : 0.34), 0, 1) : 0;
     const jx = lit ? rand(-1.6, 1.6) * lit : 0;
     const cx = br.x + jx, y0 = br.y - br.h, y1 = br.y, r = br.w / 2, rz = 0.1;
     const V = View.V;

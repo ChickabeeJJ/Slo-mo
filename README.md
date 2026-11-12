@@ -62,6 +62,10 @@ Lowercase map chars face the player's side. UPPERCASE ones face away until they 
   - **After Hours:** dark rooms lit by lamp cones, neon signs, blinking server racks, more vents to slide through, more enemies.
 - **Difficulty:** climbs steadily across all 75 levels and through every Endless run. Enemies react sooner, telegraph for less time, turn faster, fire more often, aim tighter and shoot faster rounds, and rooms hold more of them (up to 9). Every enemy still shows its red sight line before firing.
 - **Daily Run:** unlocks after level 3. Five rooms seeded by the date, so they are the same for everyone that day and change at midnight UTC. Three lives, one score, today's best is saved, and the first clear each day pays a 150-coin bonus.
+- **Kick:** F (or V, or the middle mouse button; KICK on mobile). Works standing, in the air and from a slide. It kills on contact and launches the body; a launched body that hits another enemy takes them down too (STRIKE). Kicks also send crates flying into enemies, punt barrels that burst on impact, and bat enemy bullets back (PARRY).
+- **Thrown guns:** an empty grabbed gun is hurled at where you aim and kills what it hits (THROWN).
+- **Frenzy:** every 5th kill in a combo gives 4.5 s of infinite ammo, faster fire, +15% speed and no slow-mo drain.
+- **Level design:** generated rooms are built from set-piece encounters (barrel squads, kick lines with crates, ledge snipers, riot-shield escorts, cover forts), each level opens light and ends on a bigger climax room, two-floor halls appear in every chapter, and boss fights from chapter 2 take place in a hall.
 - **Endless upgrades:** after every 3rd Endless room you pick one of three upgrades (extra life, slower slow-mo drain, faster reload, more flips, bonus score and more). They stack for the rest of the run.
 - **Endless:** unlocks after level 3. You get three lives: losing one restarts the room you're in. It generates rooms forever, gets harder every room, rotates themes every 4 rooms and adds a Juggernaut every 6th room. It tracks your best score. When your last life is gone, a rewarded ad can buy one more (once per run).
 - **Armory:** 13 weapons, 9 colours and 13 hats (Headband, Beanie, Cap, Party Hat, Shades, Headphones, Visor, Cowboy, Top Hat, Horns, Crown, Halo), bought with coins. Prism (120 stars) and Halo (60 stars) unlock for free once you've earned that many stars; stars are never spent. Prism is a translucent, iridescent crystal finish with twinkling glints.
@@ -104,6 +108,7 @@ This build is for a **Basic Launch**, so it has no ads at all: no midgames, no r
 | `Q` | Slow time |
 | `R` | Reload (and retry after dying) |
 | `E` | Grab a dropped gun |
+| `F` / `V` / middle mouse | Kick |
 | `P` | Pause (Esc is left for leaving fullscreen) |
 
 On touch screens the HUD switches to touch controls, and the painted tutorial text describes them instead of keys. A floating move stick sits on the left: push it all the way to sprint, flick up to jump, flick down to slide. Tap or hold anywhere else on the screen to shoot toward that spot, with a gentle snap onto an enemy right next to your finger (you can turn this off in Settings). Each finger is tracked separately, so you can move and shoot at the same time. Matte JUMP, SLIDE, SLOW and reload buttons sit in the bottom-right corner, the SLOW button's ring doubles as the slow-motion meter, and a GRAB button appears next to dropped guns.

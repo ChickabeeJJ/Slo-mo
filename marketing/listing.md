@@ -33,7 +33,8 @@ Mouse: aim
 Left mouse button or J: shoot
 Q: slow motion
 R: reload, or retry after dying
-E or F: pick up a gun
+E: pick up a gun
+F: kick
 P: pause
 
 Mobile
@@ -47,6 +48,8 @@ Daily Run: five new rooms every day, the same for every player
 Endless upgrades: pick 1 of 3 perks every third room
 Bullet time with full physics ragdolls and destructible crates, glass and barrels
 Slides, front flips and flip chains that reload your gun
+Kick enemies into each other, punt explosive barrels and bat bullets back
+Frenzy: chain 5 kills for infinite ammo and faster fire
 9 enemy types and surprise ambushes
 13 weapons, 15 armour pieces, 9 colours and 12 hats
 Combos, style bonuses and 3 stars per level

@@ -52,11 +52,11 @@ const BOSS_EVERY = 5;               // every 5th level of a chapter ends in a Ju
 
 // Each chapter builds its rooms differently: height, furniture, glass, catwalks, vents, extra foes.
 const STYLES = [
-  { H: [5, 6], slide: 0.06, glass: 0.3, ledge: 0.08, barrel: 0.18, furn: ['T', 'B', 'C', 'L', 'C', 'X'], extra: 0 },                 // lab
-  { H: [5, 6], slide: 0.05, glass: 0.75, ledge: 0.06, barrel: 0.12, furn: ['T', 'T', 'q', 'w', 'L', 'B', 'q'], extra: 0 },           // offices
-  { H: [6, 8], slide: 0.04, glass: 0.15, ledge: 0.3, barrel: 0.4, furn: ['X', 'u', 'C', 'C', 'L', 'u', 'X'], extra: 1 },            // warehouse
-  { H: [6, 7], slide: 0.06, glass: 0.9, ledge: 0.18, barrel: 0.12, furn: ['q', 'T', 'B', 'q', 'w'], extra: 1 },                     // highrise
-  { H: [5, 7], slide: 0.14, glass: 0.4, ledge: 0.14, barrel: 0.25, furn: ['v', 'v', 'C', 'T', 'q', 'v'], extra: 2 },                // after hours
+  { H: [5, 6], slide: 0.06, glass: 0.3, ledge: 0.14, barrel: 0.22, furn: ['T', 'B', 'C', 'L', 'C', 'X'], extra: 0 },                 // lab
+  { H: [5, 6], slide: 0.05, glass: 0.75, ledge: 0.12, barrel: 0.16, furn: ['T', 'T', 'q', 'w', 'L', 'B', 'C'], extra: 0 },           // offices
+  { H: [6, 8], slide: 0.04, glass: 0.15, ledge: 0.34, barrel: 0.4, furn: ['X', 'u', 'C', 'C', 'L', 'u', 'X'], extra: 1 },            // warehouse
+  { H: [6, 7], slide: 0.06, glass: 0.9, ledge: 0.24, barrel: 0.16, furn: ['q', 'T', 'B', 'C', 'w'], extra: 1 },                     // highrise
+  { H: [5, 7], slide: 0.14, glass: 0.4, ledge: 0.2, barrel: 0.28, furn: ['v', 'v', 'C', 'T', 'q', 'C'], extra: 2 },                // after hours
 ];
 
 const HAND_LEVELS = [
@@ -399,7 +399,10 @@ function genRoom(seed, d, opts = {}) {
   }
 
   // enemies
-  const n = clamp(Math.round(1.4 + d * 4.4 + R() * 1.6 + (opts.boss ? 1 : 0) + st.extra * d), 1, 9);
+  const role = opts.role || 'mid';            // open (first room) | mid | climax (last room)
+  let n = clamp(Math.round(1.4 + d * 4.4 + R() * 1.6 + (opts.boss ? 1 : 0) + st.extra * d), 1, 9);
+  if (role === 'open') n = Math.max(1, n - 1);
+  if (role === 'climax') n = Math.min(10, n + 1);
   const pool = ['grunt'];
   if (d > 0.15) pool.push('smg');
   if (d > 0.25) pool.push('shotgun', 'grunt');
@@ -422,6 +425,60 @@ function genRoom(seed, d, opts = {}) {
     const s = spots.filter(p => p[0] > cols * 0.55 && p[1] === f[p[0]] - 1);
     if (s.length) { const p = s[Math.floor(R() * s.length)]; mark(p[0], p[1], 'h'); placed++; taken.push(p); }
   }
+  // ---- set pieces: small designed encounters, each built to be solved a particular way
+  const runAt = len => {
+    const out = [];
+    for (let i = 10; i < cols - 4 - len; i++) {
+      let ok = true;
+      for (let k = 0; k < len && ok; k++) if (!flatAt(i + k) || f[i + k] !== f[i] || !free(i + k, f[i] - 1)) ok = false;
+      if (ok) out.push(i);
+    }
+    return out.length ? out[Math.floor(R() * out.length)] : -1;
+  };
+  const clear = (x, y) => taken.every(([tx, ty]) => Math.abs(ty - y) >= 2 || Math.abs(tx - x) >= 4);
+  const putE = (x, y, type) => { mark(x, y, charOf[type]); taken.push([x, y]); placed++; };
+  const pick = list => list[Math.floor(R() * list.length)];
+  const shooters = pool.filter(t => t !== 'brute' && t !== 'knife' && t !== 'heavy');
+  const kinds = ['squad', 'kickline', 'fort'];
+  if (d > 0.3 && ledges.length) kinds.push('sniper', 'sniper');
+  if (d > 0.32) kinds.push('shield');
+  if (d > 0.45) kinds.push('squad');
+  const nPieces = role === 'open' ? 1 : role === 'climax' ? 2 + (d > 0.5 ? 1 : 0) : 1 + (ch(0.55) ? 1 : 0);
+  for (let k = 0, guard = 0; k < nPieces && placed < n - 0 && guard < 12; guard++) {
+    const kind = pick(kinds);
+    let done = false;
+    if (kind === 'squad') {
+      // two gunmen flanking a barrel: one round into the drum takes both
+      const i = runAt(5), y = i > 0 ? f[i] - 1 : 0;
+      if (i > 0 && clear(i, y) && clear(i + 4, y)) { putE(i, y, pick(shooters)); mark(i + 2, y, 'O'); putE(i + 4, y, pick(shooters)); done = true; }
+    } else if (kind === 'kickline') {
+      // a crate, then two foes in a row: kick the crate or the first body into the second
+      const i = runAt(7), y = i > 0 ? f[i] - 1 : 0;
+      if (i > 0 && clear(i + 2, y) && clear(i + 5, y)) {
+        if (roomy(i)) mark(i, y, 'C');
+        putE(i + 2, y, 'grunt'); putE(i + 5, y, d > 0.3 ? pick(['shotgun', 'smg', 'grunt']) : 'grunt'); done = true;
+      }
+    } else if (kind === 'sniper') {
+      // a marksman on the far end of a ledge, with a gunman underneath
+      const L = pick(ledges), x = L.x + L.len - 1, y = L.r - 1;
+      if (free(x, y) && clear(x, y)) {
+        putE(x, y, d > 0.38 ? 'rifle' : 'grunt');
+        const gx = L.x - 2, gy = f[gx] - 1;
+        if (gx > 10 && flatAt(gx) && free(gx, gy) && clear(gx, gy) && placed < n) putE(gx, gy, 'grunt');
+        done = true;
+      }
+    } else if (kind === 'shield') {
+      // a riot shield screening a grenadier or a sprayer: get round it, over it, or kick it
+      const i = runAt(6), y = i > 0 ? f[i] - 1 : 0;
+      if (i > 0 && clear(i, y) && clear(i + 4, y)) { putE(i, y, 'shield'); putE(i + 4, y, d > 0.4 ? 'grenadier' : 'smg'); done = true; }
+    } else if (kind === 'fort') {
+      // a gunman dug in behind a cover block, a kickable crate in front of it
+      const i = runAt(5), y = i > 0 ? f[i] - 1 : 0;
+      if (i > 0 && roomy(i + 1) && clear(i + 2, y)) { mark(i, y, 'C'); mark(i + 1, y, 'X'); putE(i + 3, y, pick(shooters)); done = true; }
+    }
+    if (done) k++;
+  }
+
   for (let tries = 0; tries < 90 && placed < n && spots.length; tries++) {
     const p = spots[Math.floor(R() * spots.length)];
     if (!free(p[0], p[1]) || !spaced(p[0], p[1])) continue;
@@ -469,7 +526,7 @@ function genRoom(seed, d, opts = {}) {
   }
   // ambushes further into the room
   const ambush = [];
-  const nAmb = d < 0.2 ? 0 : (ch(0.35 + d * 0.5) ? 1 : 0) + (d > 0.55 && ch(0.4) ? 1 : 0);
+  const nAmb = d < 0.2 ? 0 : (role === 'climax' ? 1 : ch(0.35 + d * 0.5) ? 1 : 0) + (d > 0.55 && ch(0.4) ? 1 : 0);
   const ambPool = ['grunt', 'smg', 'shotgun', d > 0.35 ? 'knife' : 'grunt'];
   const ambSpaced = (x, y) => taken.every(([tx, ty]) => Math.abs(tx - x) >= (Math.abs(ty - y) < 2 ? 4 : 2));
   for (let tries = 0; tries < 120 && ambush.length < nAmb; tries++) {
@@ -555,6 +612,16 @@ function genBigRoom(seed, d, opts = {}) {
     for (let k = 1; k < w; k++) set(p[0] + k, p[1], kind === 'T' || kind === 'B' || kind === 'L' || kind === 'u' ? '.' : kind);
     if (ch(0.5)) t += 5;
   }
+  // a barrel between two deck guards, so the high ground can be cleared with one shot
+  for (let t = 0; t < 12; t++) {
+    const p = deck[Math.floor(R() * deck.length)];
+    if (!p) break;
+    const [x, y] = p;
+    if ([0, 1, 2, 3, 4].every(k => at(x + k, y) === '.' && at(x + k, y + 1) !== '.') && spaced(x, y) && spaced(x + 4, y)) {
+      set(x, y, charOf[pool[0]]); set(x + 2, y, 'O'); set(x + 4, y, charOf[d > 0.35 ? 'smg' : 'grunt']); taken.push([x, y], [x + 4, y]);
+      break;
+    }
+  }
   for (const L of [deck, far]) if (ch(st.barrel + 0.2) && L.length) { const p = L[Math.floor(R() * L.length)]; if (at(p[0], p[1]) === '.' && at(p[0] + 1, p[1]) === '.') set(p[0], p[1], 'O'); }
   // ambushes: one on the deck, one on the far floor
   const ambush = [];
@@ -595,12 +662,15 @@ function getLevel(i) {
     L = { name: h.name, rooms: h.rooms, par: h.par, hand: true };
   } else {
     const d = levelDiff(i);
-    const big = inCh === 7 || inCh === 12;
+    const big = inCh % 4 === 2 || inCh === 12;            // two-floor halls show up in every chapter
     const nRooms = boss ? 4 : big ? 2 : 3;
     const rooms = [];
     for (let r = 0; r < nRooms; r++) {
-      if (big && r === 1) rooms.push(genBigRoom(1000 + i * 31 + r * 7, clamp(d + 0.04, 0, 1), { style: chapter }));
-      else rooms.push(genRoom(1000 + i * 31 + r * 7, clamp(d + r * 0.03, 0, 1), { boss: boss && r === nRooms - 1, style: chapter }));
+      const role = r === 0 ? 'open' : r === nRooms - 1 ? 'climax' : 'mid';
+      const seed = 1000 + i * 31 + r * 7;
+      // boss fights from chapter 2 on take place in a big hall
+      if ((big && r === 1) || (boss && chapter > 0 && r === nRooms - 1)) rooms.push(genBigRoom(seed, clamp(d + 0.04, 0, 1), { style: chapter, boss: boss && r === nRooms - 1 }));
+      else rooms.push(genRoom(seed, clamp(d + r * 0.03, 0, 1), { boss: boss && r === nRooms - 1, style: chapter, role }));
     }
     let par = 0;
     for (const rm of rooms) par += rm.map[0].length * (rm.big ? 0.6 : 0.45) + (countEnemies(rm.map) + (rm.ambush ? rm.ambush.length : 0)) * 3 + 2;
@@ -620,7 +690,7 @@ function getLevel(i) {
 function endlessRoom(runSeed, n) {
   const d = clamp(0.25 + n * 0.06, 0, 1);
   const t = Math.floor(n / 4) % THEMES.length;
-  const room = n > 0 && n % 7 === 3 ? genBigRoom(runSeed + n * 101, d, { style: t }) : genRoom(runSeed + n * 101, d, { boss: n > 0 && n % 6 === 5, style: t });
+  const room = n > 0 && n % 7 === 3 ? genBigRoom(runSeed + n * 101, d, { style: t }) : genRoom(runSeed + n * 101, d, { boss: n > 0 && n % 6 === 5, style: t, role: n === 0 ? 'open' : n % 5 === 4 ? 'climax' : 'mid' });
   room.theme = t;
   return room;
 }
