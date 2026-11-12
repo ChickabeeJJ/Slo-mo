@@ -46,7 +46,7 @@ const UI = (() => {
     Game.on('respawn', () => { $('death').classList.add('hidden'); updateChip(); });
     Game.on('room', () => { updateChip(); });
     Game.on('perks', openPerks);
-    Game.on('breach', () => { const b = $('breachBanner'); b.classList.remove('go'); void b.offsetWidth; b.classList.add('go'); });
+    Game.on('banner', d => { const b = $('eventBanner'); b.innerHTML = `<b>${d.title}</b><small>${d.sub || ''}</small>`; b.classList.remove('go'); void b.offsetWidth; b.classList.add('go'); });
     Game.on('flipReload', () => { const a = $('ammo'); a.classList.remove('flash'); void a.offsetWidth; a.classList.add('flash'); });
     Game.on('start', () => { updateChip(); $('death').classList.add('hidden'); });
     Game.on('mission', m => toast('Mission complete: ' + m.text, 'scroll'));
@@ -650,7 +650,7 @@ const UI = (() => {
   }
 
   /* ------------------------------------------------- daily hub (rewards + missions) */
-  const MISSION_ICON = { breach: 'fire', kills: 'skull', head: 'target', air: 'up', slide: 'slide', slow: 'clock', deflect: 'shield', levels: 'grid', stars: 'star', boom: 'fire', endless: 'infinity', multi: 'skull', flip: 'flip' };
+  const MISSION_ICON = { kills: 'skull', head: 'target', air: 'up', slide: 'slide', slow: 'clock', deflect: 'shield', levels: 'grid', stars: 'star', boom: 'fire', endless: 'infinity', multi: 'skull', flip: 'flip' };
   let dailyTimer = null;
   const untilReset = () => {
     const ms = 86400000 - (Date.now() % 86400000), p = n => String(n).padStart(2, '0');

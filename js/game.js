@@ -116,12 +116,8 @@ const Game = (() => {
   function roomDef(i) { return mode === 'endless' ? endlessRoom(endless.seed, i) : level.rooms[i]; }
 
   let godMode = false, zoomK = 1;
-  // BREACH: every room you walk into opens with a burst of bullet time. Kills inside it score extra.
-  let breachPending = false, breachT = 0;
-  const BREACH_TIME = 1.9;
   const perk = id => (run && run.perks && run.perks[id]) || 0;
   const flipMax = () => FLIP_CHAIN + perk('acro');
-  const breachTime = () => BREACH_TIME * (1 + 0.5 * perk('breach'));       // capture-tool only
   let roomFocus = 1, roomPickup = null, roomArmor = null;     // what you walked into the room with
   function loadRoom(i) {
     if (mode === 'campaign' && !level.rooms[i]) i = level.rooms.length - 1;
@@ -161,7 +157,6 @@ const Game = (() => {
     doorOpen = true;            // exits are always open: clearing the room is optional, just worth points
     clearT = -1; roomT = 0; deathT = 0;
     forcedT = 0; hitstop = 0;
-    breachT = 0; breachPending = mode !== 'menu' && !(mode === 'campaign' && levelIdx === 0);
   }
   // Armour durability lasts a whole level (or Endless run): damage carries from room to room, a room
   // reset gives back exactly what you walked into that room with, and a new level repairs it fully.
@@ -377,18 +372,6 @@ const Game = (() => {
       if (fade.phase === 'out' && fade.t >= 0.32) { fade.phase = 'in'; fade.t = 0; fade.cb(); }
       else if (fade.phase === 'in' && fade.t >= 0.32) fade = null;
     }
-    // the breach fires once the room has faded in
-    if (breachPending && !fade && state === 'play' && player && player.alive) {
-      breachPending = false;
-      if (enemies.some(e => e.alive)) {
-        breachT = breachTime();
-        slowMo(breachT * 0.62, 0.3);
-        Sfx.slowIn(); shake(4);
-        Fx.ring(player.x, player.y - 46, 300, '#45dcff', 7, 0.6);
-        emit('breach');
-      }
-    }
-    if (breachT > 0) breachT -= dtReal;
     // time scale
     let target = 1;
     if (slowOn) target = SLOW_SCALE;
@@ -1345,7 +1328,6 @@ const Game = (() => {
     const tags = [];
     let pts = 100;
     if (info.crossfire) { tags.push('CROSSFIRE'); pts += 80; }
-    if (breachT > 0 && !info.crossfire) { tags.push('BREACH'); pts += 70; track('breachKills'); }
     if (info.head) { tags.push(STYLE.headshot.label); pts += STYLE.headshot.pts; track('headshots'); run.headshots++; }
     if (info.boom) { tags.push(STYLE.boom.label); pts += STYLE.boom.pts; track('boomKills'); }
     if (!info.boom && !info.crossfire && p.alive) {
@@ -1981,7 +1963,7 @@ const Game = (() => {
     startMenu, startLevel, startEndless, restartRoom, pickPerk, endEndless, toggleSlow,
     get state() { return state; }, get mode() { return mode; }, get paused() { return paused; },
     set paused(v) { paused = v; },
-    get focus() { return focus; }, get breachT() { return breachT; }, get slowOn() { return slowOn; }, get ts() { return ts; },
+    get focus() { return focus; }, get slowOn() { return slowOn; }, get ts() { return ts; },
     get run() { return run; }, get level() { return level; }, get levelIdx() { return levelIdx; }, get roomIdx() { return roomIdx; },
     get roomCount() { return mode === 'endless' ? (endless.daily ? endless.len : endless.n + 1) : level.rooms.length; },
     get armorState() { return player && player.armorHp ? ['head', 'body', 'legs'].map(s => player.armorHp[s] ? Object.assign({ slot: s }, player.armorHp[s]) : null) : []; },

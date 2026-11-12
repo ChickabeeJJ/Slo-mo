@@ -121,7 +121,6 @@ const MISSION_POOL = [
   { id: 'endless', text: 'Clear {n} rooms in Endless', stat: 'endlessRooms', n: [5, 9], reward: 120 },
   { id: 'multi', text: 'Get {n} multi-kills', stat: 'multis', n: [2, 4], reward: 130 },
   { id: 'flip', text: 'Get {n} kills during a flip', stat: 'flipKills', n: [2, 4], reward: 130 },
-  { id: 'breach', text: 'Get {n} breach kills', stat: 'breachKills', n: [4, 8], reward: 110 },
 ];
 
 // Kill style table: label shown in the popup and score bonus on top of the base 100.
@@ -143,7 +142,6 @@ const PERKS = [
   { id: 'hands', name: 'Quick Hands', icon: 'reload', desc: 'Reload 30% faster.', max: 2 },
   { id: 'feet', name: 'Light Feet', icon: 'up', desc: 'Move 8% faster.', max: 3 },
   { id: 'acro', name: 'Acrobat', icon: 'flip', desc: '+1 flip in a chain.', max: 2 },
-  { id: 'breach', name: 'Long Breach', icon: 'target', desc: 'Breach bullet time lasts 50% longer.', max: 2 },
   { id: 'show', name: 'Showboat', icon: 'star', desc: '+20% score from every kill.', max: 3 },
   { id: 'patch', name: 'Patch Up', icon: 'shield', desc: 'Repair all your armour now.', max: 99, armour: true },
 ];

@@ -18,6 +18,13 @@
   const inPlay = () => UI.screen === null && !UI.modalOpen() && !Game.paused;
 
   /* ------------------------------------------------------------ mouse */
+  // A mouse-up that happens outside the game (outside the CrazyGames iframe, over the browser UI,
+  // during an alt-tab) never reaches us, which used to leave the trigger held down: the gun kept
+  // firing on its own. Every mouse event now re-checks which buttons are really down.
+  const syncButtons = e => { if (e.pointerType === 'mouse' && !(e.buttons & 1) && Game.input.shoot) Game.setKey('shoot', false); };
+  window.addEventListener('pointermove', syncButtons);
+  window.addEventListener('pointerover', syncButtons);
+  document.addEventListener('mouseleave', () => Game.setKey('shoot', false));
   canvas.addEventListener('pointermove', e => { if (e.pointerType === 'mouse') Game.setMouse(e.clientX, e.clientY); });
   canvas.addEventListener('pointerdown', e => {
     Sfx.ensure();
@@ -25,10 +32,11 @@
     document.body.classList.remove('touch');
     Game.setMouse(e.clientX, e.clientY);
     if (!inPlay()) return;
-    if (e.button === 0) { Game.setKey('shoot', true); Game.press('shoot'); }
+    if (e.button === 0) { Game.setKey('shoot', true); Game.press('shoot'); try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ } }
     else if (e.button === 2) Game.press('slide');
   });
   window.addEventListener('pointerup', e => { if (e.pointerType === 'mouse' && e.button === 0) Game.setKey('shoot', false); });
+  canvas.addEventListener('lostpointercapture', e => { if (e.pointerType === 'mouse') Game.setKey('shoot', false); });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 
   /* --------------------------------------------------------- keyboard */
@@ -74,6 +82,7 @@
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
+      for (const k of ['left', 'right', 'sprint', 'shoot']) Game.setKey(k, false);
       if (UI.screen === null && !UI.modalOpen() && (Game.state === 'play' || Game.state === 'dead')) UI.openPause();
       Sfx.suspend(true);
     } else Sfx.suspend(false);

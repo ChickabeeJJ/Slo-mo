@@ -11,7 +11,7 @@ Short description
 Bend time, slide under bullets and flip through rooms full of gunmen in a slow-motion ragdoll shootout.
 
 Description
-Still Point is a fast, stylish 2D shooter where you control time. Breach every door in a burst of bullet time, sprint, slide under incoming fire and front-flip over enemies, then slow the world down to line up the perfect shot. Every bullet is a real projectile you can see, dodge and even shoot out of the air. One hit is all it takes, for you and for most of them.
+Still Point is a fast, stylish 2D shooter where you control time. Burst through doors, sprint, slide under incoming fire and front-flip over enemies, then slow the world down to line up the perfect shot. Every bullet is a real projectile you can see, dodge and even shoot out of the air. One hit is all it takes, for you and for most of them.
 
 Enemies don't just fall over. They crumple, spin and tumble as full physics ragdolls, and crates, glass and explosive barrels react to every shot. Chain kills together for combos, earn style bonuses for headshots, flip kills, slide kills and multi kills, and race the clock for three stars on every level.
 
@@ -44,7 +44,6 @@ Slow, Jump, Slide and Reload buttons on the right, and a Grab button when you st
 Features
 75 handcrafted levels in 5 chapters, plus Endless mode with 3 lives
 Daily Run: five new rooms every day, the same for every player
-Breach: every room opens with a burst of bullet time and bonus points for fast kills
 Endless upgrades: pick 1 of 3 perks every third room
 Bullet time with full physics ragdolls and destructible crates, glass and barrels
 Slides, front flips and flip chains that reload your gun
