@@ -116,6 +116,9 @@ const Game = (() => {
   function roomDef(i) { return mode === 'endless' ? endlessRoom(endless.seed, i) : level.rooms[i]; }
 
   let godMode = false, zoomK = 1;
+  // FRENZY: every 5th kill in a combo gives a few seconds of infinite ammo, faster fire and speed
+  let frenzyT = 0;
+  const FRENZY_TIME = 4.5, KICK_DUR = 0.32;
   const perk = id => (run && run.perks && run.perks[id]) || 0;
   const flipMax = () => FLIP_CHAIN + perk('acro');
   let roomFocus = 1, roomPickup = null, roomArmor = null;     // what you walked into the room with
@@ -156,7 +159,7 @@ const Game = (() => {
     panes = room.panesDef.map(g => Object.assign({}, g, { broken: false }));
     doorOpen = true;            // exits are always open: clearing the room is optional, just worth points
     clearT = -1; roomT = 0; deathT = 0;
-    forcedT = 0; hitstop = 0;
+    forcedT = 0; hitstop = 0; frenzyT = 0;
   }
   // Armour durability lasts a whole level (or Endless run): damage carries from room to room, a room
   // reset gives back exactly what you walked into that room with, and a new level repairs it fully.
@@ -383,7 +386,8 @@ const Game = (() => {
     const wdt = dtReal * tsEff;
     const pdt = dtReal * (1 - (1 - tsEff) * 0.52);
     if (state === 'play') {
-      if (slowOn) { focus -= dtReal * 0.23 * Math.pow(0.75, perk('focus')); if (focus <= 0) { focus = 0; slowOn = false; Sfx.slowOut(); } }
+      if (frenzyT > 0) { frenzyT -= dtReal; if (frenzyT <= 0) emit('frenzy', false); }
+      if (slowOn) { focus -= dtReal * 0.23 * Math.pow(0.75, perk('focus')) * (frenzyT > 0 ? 0 : 1); if (focus <= 0) { focus = 0; slowOn = false; Sfx.slowOut(); } }
       else focus = Math.min(1, focus + dtReal * 0.045);
       run.time += dtReal; roomT += dtReal;
       if (run.comboT > 0) { run.comboT -= dtReal; if (run.comboT <= 0) run.combo = 0; }
@@ -518,7 +522,7 @@ const Game = (() => {
     const spinning = (p.pickup || p.weapon).spin > 0.05;
     if (spinning) p.sprinting = false;
     const swift = p.armorHp && p.armorHp.legs && ARMOR_BY[p.armorHp.legs.id].ability === 'swift' ? 1.07 : 1;
-    const want = swift * (1 + 0.08 * perk('feet')) * mx * (p.sprinting ? SPRINT : WALK) * (spinning && w.heavy ? 0.45 : spinning ? 0.7 : 1);
+    const want = swift * (1 + 0.08 * perk('feet')) * (frenzyT > 0 ? 1.15 : 1) * mx * (p.sprinting ? SPRINT : WALK) * (spinning && w.heavy ? 0.45 : spinning ? 0.7 : 1);
 
     // timers
     p.coyote = p.grounded ? 0.1 : p.coyote - dt;
@@ -704,6 +708,18 @@ const Game = (() => {
     for (const g of pickups) if (g.t > 0.3 && dist(g.x, g.y, p.x, p.y - 20) < 60) p.nearPickup = g;
     if (pressed.has('pick') && p.nearPickup) takePickup(p.nearPickup);
 
+    // ---- kick: a quick front kick that launches whatever it connects with
+    if (p.kickCd > 0) p.kickCd -= dt;
+    if (pressed.has('kick') && !(p.kickCd > 0) && !p.crawl) {
+      p.kickT = KICK_DUR; p.kickCd = 0.5; p.kickDone = false;
+      Sfx.swing();
+      if (!p.grounded && p.vy > -100) p.vy = Math.min(p.vy, 120);       // a flying kick hangs for a moment
+    }
+    if (p.kickT > 0) {
+      p.kickT -= dt;
+      if (!p.kickDone && p.kickT < KICK_DUR * 0.62) { p.kickDone = true; doKick(p); }
+    }
+
     // ---- slow motion
     if (pressed.has('slow')) toggleSlow();
 
@@ -729,6 +745,7 @@ const Game = (() => {
     p.body.gunId = ww.id;
     p.body.dual = !!ww.dual;
     p.body.pose({
+      kick: p.kickT > 0 ? 1 - p.kickT / KICK_DUR : null,
       x: poseX, y: p.y, facing: p.facing, aim: p.aim, vx: p.vx, vy: p.vy, grounded: p.grounded || p.airSlide, slide: sliding, flip: p.flipping ? p.flip * p.flipDir : 0,
       sprint: p.sprinting, gun: true, twoHand: TWO_HAND.has(ww.id), dual: ww.dual, kick: p.weapon.kick, kick2: p.weapon.kick2,
       slideFront, slideBack, slope: p.slopeS,
@@ -845,8 +862,9 @@ const Game = (() => {
   }
 
   function fire(c, w, ws, followUp) {
-    if (!followUp) ws.cd = w.rate;
-    ws.ammo--;
+    const fr = c === player && frenzyT > 0;
+    if (!followUp) ws.cd = w.rate * (fr ? 0.6 : 1);
+    if (!fr) ws.ammo--;
     ws.held = true;
     const dual = !!w.dual;
     const second = dual && (ws.alt = (ws.alt || 0) ^ 1) === 1;
@@ -896,8 +914,9 @@ const Game = (() => {
     if (!p.pickup) return;
     if (!empty) pickups.push({ id: p.pickup.id, ammo: p.pickup.ammo, x: p.x, y: p.y - 60, vx: p.facing * 120, vy: -200, rot: p.aim, vr: rand(-8, 8), t: 0 });
     else {
-      // empty guns get tossed
-      pickups.push({ id: p.pickup.id, ammo: 0, x: p.x, y: p.y - 60, vx: p.facing * 260, vy: -260, rot: p.aim, vr: rand(-14, 14), t: -99, empty: true });
+      // empty guns get hurled at whatever you're aiming at, and they hurt
+      pickups.push({ id: p.pickup.id, ammo: 0, x: p.x + Math.cos(p.aim) * 30, y: p.y - 70 + Math.sin(p.aim) * 20, vx: Math.cos(p.aim) * 1150, vy: Math.sin(p.aim) * 1150 - 80, rot: p.aim, vr: 26 * p.facing, t: -99, empty: true, thrown: true });
+      Sfx.swing();
     }
     p.pickup = null;
     p.weapon.cd = 0.15;
@@ -1328,6 +1347,9 @@ const Game = (() => {
     const tags = [];
     let pts = 100;
     if (info.crossfire) { tags.push('CROSSFIRE'); pts += 80; }
+    if (info.kick) { tags.push('KICK'); pts += 90; track('kickKills'); }
+    if (info.strike) { tags.push('STRIKE'); pts += 120; track('kickKills'); }
+    if (info.thrown) { tags.push('THROWN'); pts += 100; }
     if (info.head) { tags.push(STYLE.headshot.label); pts += STYLE.headshot.pts; track('headshots'); run.headshots++; }
     if (info.boom) { tags.push(STYLE.boom.label); pts += STYLE.boom.pts; track('boomKills'); }
     if (!info.boom && !info.crossfire && p.alive) {
@@ -1339,6 +1361,7 @@ const Game = (() => {
     if (clock - lastKillT < 0.45) { multiCount++; if (multiCount === 1) { tags.push('MULTI KILL'); pts += 100; track('multis'); } } else multiCount = 0;
     lastKillT = clock;
     run.combo++; run.comboT = 3; run.bestCombo = Math.max(run.bestCombo, run.combo);
+    if (mode !== 'menu' && run.combo % 5 === 0) startFrenzy();
     const mult = Math.min(4, 1 + (run.combo - 1) * 0.25);
     const total = Math.round(pts * mult * (1 + 0.2 * perk('show')));
     run.score += total; run.kills++;
@@ -1386,6 +1409,80 @@ const Game = (() => {
   }
 
   // a shot barrel hisses and glows for a moment, then goes up
+  function startFrenzy() {
+    const fresh = !(frenzyT > 0);
+    frenzyT = FRENZY_TIME;
+    if (!player.pickup) { player.weapon.ammo = WEAPON[player.weapon.id].mag; player.weapon.reloadT = 0; }
+    if (fresh) { Sfx.unlock(); Fx.ring(player.x, player.y - 46, 260, '#45dcff', 8, 0.55); emit('frenzy', true); emit('banner', { title: 'FRENZY', sub: 'INFINITE AMMO · FASTER FIRE' }); }
+  }
+
+  // The kick: kills on contact (it's a risk to get that close), launches the body, sends crates and
+  // barrels flying and bats enemy rounds back the way they came.
+  function doKick(p) {
+    const dir = p.facing, low = p.slideT > 0 || p.crawl;
+    const fx = p.x + dir * 46, fy = p.y - (low ? 22 : p.grounded ? 46 : 52);
+    let connected = false;
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const dx = (e.x - p.x) * dir;
+      if (dx < -12 || dx > 86 + 12 * e.s) continue;
+      if (Math.abs((e.y - 46 * e.s) - fy) > 64 * e.s) continue;
+      connected = true;
+      killEnemy(e, dir * 1550, -560, J.PELVIS, { head: false, kick: true });
+      e.body.strikes = 3; e.body.strikeT = 0.9;
+    }
+    for (const c of crates) {
+      if (Math.abs(c.x - fx) > 52 || Math.abs(c.y - fy) > 60) continue;
+      connected = true;
+      c.sleep = 0; Rigid.impulse(c, c.x - dir * 8, c.y + 6, dir * c.m * 980, -c.m * 420);
+      c.flying = 0.9;
+    }
+    for (const br of barrels) {
+      if (br.gone || br.flying || Math.abs(br.x - fx) > 50 || fy < br.y - br.h - 30 || fy > br.y + 10) continue;
+      connected = true;
+      br.flying = true; br.vx = dir * 860; br.vy = -300;
+      if (br.fuse < 0) { br.fuse = 1.6; br.byPlayer = true; Sfx.fuse(); }
+    }
+    for (const b of bullets) {
+      if (b.owner !== 'e' || Math.hypot(b.x - fx, b.y - fy) > 58) continue;
+      connected = true;
+      b.owner = 'p'; b.vx = -b.vx * 1.15; b.vy = -b.vy; b.shooter = p; b.hits = []; b.t = 0;
+      styleEvent(b.x, b.y, 'PARRY', 90); run.deflects++; track('deflects');
+    }
+    for (const g of pickups) if (Math.abs(g.x - fx) < 50 && Math.abs(g.y - fy) < 60) { g.vx = dir * 700; g.vy = -320; g.rest = false; }
+    if (connected) { hitstop = Math.max(hitstop, 0.07); shake(7); Fx.ring(fx, fy, 70, '#ffffff', 4, 0.25); Sfx.hit(false); }
+    else Fx.dust(fx, fy, 3, '#ffffff', 0.4);
+  }
+
+  // kicked bodies and crates bowl over anyone they fly into
+  function updateStrikes(dt) {
+    const hitBy = (x, y, vx, vy, r, owner) => {
+      for (const e of enemies) {
+        if (!e.alive || e.body === owner) continue;
+        const c = e.body.center();
+        if (Math.hypot(c.x - x, c.y - y) > r * e.s) continue;
+        killEnemy(e, vx * 1.05, vy - 300, J.PELVIS, { head: false, strike: true });
+        e.body.strikes = 2; e.body.strikeT = 0.8;
+        return true;
+      }
+      return false;
+    };
+    for (const cb of corpses) {
+      if (!(cb.strikeT > 0) || !(cb.strikes > 0)) continue;
+      cb.strikeT -= dt;
+      const pl = cb.pts[J.PELVIS];
+      const vx = (pl.x - (cb.lastPX ?? pl.x)) / Math.max(dt, 1e-4), vy = (pl.y - (cb.lastPY ?? pl.y)) / Math.max(dt, 1e-4);
+      cb.lastPX = pl.x; cb.lastPY = pl.y;
+      if (Math.hypot(vx, vy) < 300) continue;
+      if (hitBy(pl.x, pl.y, vx, vy, 44, cb)) { cb.strikes--; hitstop = Math.max(hitstop, 0.05); shake(5); }
+    }
+    for (const c of crates) {
+      if (!(c.flying > 0)) continue;
+      c.flying -= dt;
+      if (Math.hypot(c.vx, c.vy) > 320 && hitBy(c.x, c.y, c.vx, c.vy, 40, null)) { c.flying = 0; Sfx.crate(); }
+    }
+  }
+
   function lightBarrel(br, byPlayer, dir = 0) {
     if (br.gone || br.fuse >= 0) return;
     br.fuse = 0.34; br.byPlayer = byPlayer; br.kick = dir;
@@ -1435,11 +1532,21 @@ const Game = (() => {
   /* -------------------------------------------------------- world bits */
   function updateWorldBits(dt) {
     for (const br of barrels) {
-      if (br.gone || br.fuse < 0) continue;
+      if (br.gone) continue;
+      if (br.flying) {
+        br.vy += G * 0.9 * dt;
+        const nx = br.x + br.vx * dt, ny = br.y + br.vy * dt;
+        let boom = room.solidAt(nx + Math.sign(br.vx) * 16, ny - br.h * 0.5, panes) || room.solidAt(nx, ny, panes);
+        for (const e of enemies) if (!boom && e.alive && Math.abs(e.x - nx) < 30 * e.s && ny > e.y - 90 * e.s && ny - br.h < e.y) boom = true;
+        if (boom) { detonate(br, true); continue; }
+        br.x = nx; br.y = ny;
+      }
+      if (br.fuse < 0) continue;
       br.fuse -= dt;
       if (Math.random() < 0.6) Fx.smoke(br.x + rand(-6, 6), br.y - br.h, 1, '#9b9ba3', 0.5);
       if (br.fuse <= 0) detonate(br, br.byPlayer);
     }
+    updateStrikes(dt);
     for (const cb of corpses) {
       cb.simulate(dt, room, panes);
       if (!cb.broken && cb.deadT > cb.breakAt) { pieces.push(...cb.breakApart()); Sfx.crumble(); Fx.dust(cb.pts[J.PELVIS].x, cb.pts[J.PELVIS].y, 6, '#ffffff'); }
@@ -1456,7 +1563,20 @@ const Game = (() => {
     // dropped guns
     for (const g of pickups) {
       g.t += dt;
-      g.vy += G * dt;
+      if (g.thrown) {
+        if (Math.hypot(g.vx, g.vy) < 380) g.thrown = false;
+        else for (const e of enemies) {
+          if (!e.alive) continue;
+          const c = e.body.center(), h = e.body.pts[J.HEAD];
+          const head = Math.hypot(h.x - g.x, h.y - g.y) < 22 * e.s;
+          if (!head && Math.hypot(c.x - g.x, c.y - g.y) > 34 * e.s) continue;
+          killEnemy(e, g.vx * 0.9, g.vy * 0.9 - 200, head ? J.HEAD : J.NECK, { head, thrown: true });
+          g.thrown = false; g.vx *= -0.3; g.vy = -260;
+          hitstop = Math.max(hitstop, 0.05);
+          break;
+        }
+      }
+      g.vy += G * dt * (g.thrown ? 0.35 : 1);
       const nx = g.x + g.vx * dt, ny = g.y + g.vy * dt;
       const ground = room.solidAt(nx, ny + 3, panes) || room.platforms.some(p => nx > p.x1 && nx < p.x2 && g.y + 3 <= p.y && ny + 3 >= p.y);
       if (ground) { g.vy *= -0.25; g.vx *= 0.5; g.vr *= 0.4; if (Math.abs(g.vy) < 30) { g.vy = 0; g.rest = true; } }
@@ -1963,7 +2083,7 @@ const Game = (() => {
     startMenu, startLevel, startEndless, restartRoom, pickPerk, endEndless, toggleSlow,
     get state() { return state; }, get mode() { return mode; }, get paused() { return paused; },
     set paused(v) { paused = v; },
-    get focus() { return focus; }, get slowOn() { return slowOn; }, get ts() { return ts; },
+    get focus() { return focus; }, get frenzyT() { return frenzyT; }, get slowOn() { return slowOn; }, get ts() { return ts; },
     get run() { return run; }, get level() { return level; }, get levelIdx() { return levelIdx; }, get roomIdx() { return roomIdx; },
     get roomCount() { return mode === 'endless' ? (endless.daily ? endless.len : endless.n + 1) : level.rooms.length; },
     get armorState() { return player && player.armorHp ? ['head', 'body', 'legs'].map(s => player.armorHp[s] ? Object.assign({ slot: s }, player.armorHp[s]) : null) : []; },

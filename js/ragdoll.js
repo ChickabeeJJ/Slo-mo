@@ -114,6 +114,15 @@ class Body {
       // heel kick on the trailing leg while sprinting
       if (sprint && run > 0.5) for (const [ft, p] of [[fFoot, ph], [bFoot, ph + Math.PI]]) if (Math.sin(p) * mf < -0.3 && Math.cos(p) > 0) ft[1] -= 6;
     }
+    // front kick: chamber the knee, snap the foot out at hip height, lean back
+    if (st.kick != null) {
+      const m = st.kick, out = m < 0.28 ? m / 0.28 : m < 0.7 ? 1 : 1 - (m - 0.7) / 0.3;
+      const hy = st.slide ? -10 : pel[1];
+      fFoot = [lerp(10, 44, out), lerp(hy + 22, hy - 2, out)];
+      fBend = 1;
+      neck = [neck[0] - 9 * out, neck[1] + 3 * out];
+      if (st.grounded && !st.slide) bFoot = [-6, 0];
+    }
     set(J.PELVIS, pel[0], pel[1]);
     set(J.NECK, neck[0], neck[1]);
     // the head turns a little toward where the gun points

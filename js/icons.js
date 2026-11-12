@@ -14,6 +14,7 @@ const Icons = (() => {
     flip: `<path d="M4.6 13.2A7.5 7.5 0 1 0 7 6.6" ${S}/><path d="M7.6 2.6 7 6.8l4.2.6" ${S}/><circle cx="12" cy="12.6" r="1.9" ${F}/>`,
     calendar: `<rect x="3.5" y="5" width="17" height="15.5" rx="2.5" ${S}/><path d="M3.5 10h17M8 2.8v4M16 2.8v4" ${S}/><path d="m9 15 2.2 2.2L15.2 13" ${S}/>`,
     shield: `<path d="M12 2.8 4.5 5.6v6c0 4.6 3.2 8 7.5 9.6 4.3-1.600 7.5-5 7.500-9.600v-6z" ${S}/><path d="m9 12 2.2 2.2L15.200 10" ${S}/>`,
+    kick: `<path d="M9 3.5a2 2 0 1 1 0 .01M8 7.5l-2.5 5 4 2.5 1 6M8 7.5l5 3.5 6.5-1.5" ${S}/>`,
     pause: `<path d="M8.5 5v14M15.5 5v14" ${S} stroke-width="3.4"/>`,
     play: `<path d="M7 4.5v15l12.5-7.5z" ${F}/>`,
     back: `<path d="M15 5l-7 7 7 7" ${S} stroke-width="3"/>`,

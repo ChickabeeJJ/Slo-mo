@@ -34,6 +34,7 @@
     if (!inPlay()) return;
     if (e.button === 0) { Game.setKey('shoot', true); Game.press('shoot'); try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* not capturable */ } }
     else if (e.button === 2) Game.press('slide');
+    else if (e.button === 1) { e.preventDefault(); Game.press('kick'); }
   });
   window.addEventListener('pointerup', e => { if (e.pointerType === 'mouse' && e.button === 0) Game.setKey('shoot', false); });
   canvas.addEventListener('lostpointercapture', e => { if (e.pointerType === 'mouse') Game.setKey('shoot', false); });
@@ -63,7 +64,8 @@
       case 'KeyS': case 'ArrowDown': case 'KeyC': e.preventDefault(); Game.press('slide'); break;
       case 'KeyQ': Game.press('slow'); break;
       case 'KeyR': Game.press('reload'); break;
-      case 'KeyE': case 'KeyF': Game.press('pick'); break;
+      case 'KeyE': Game.press('pick'); break;
+      case 'KeyF': case 'KeyV': Game.press('kick'); break;
       case 'KeyJ': Game.setKey('shoot', true); Game.press('shoot'); break;
       default: break;
     }
