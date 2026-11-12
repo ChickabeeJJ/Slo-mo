@@ -29,6 +29,7 @@ const TitleFx = (() => {
   const CY = '69,220,255';
 
   const rand = (a, b) => a + Math.random() * (b - a);
+  const N = () => letters.length;           // index of the slanted block (after the letters)
   const ease = t => (t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t));
 
   function init() {
@@ -112,7 +113,7 @@ const TitleFx = (() => {
       letters.forEach((el, i) => {
         if (!introDone[i] && it > 0.34 + i * 0.09) { introDone[i] = true; const r = g.rs[i]; sparks(r.left + r.width / 2, r.bottom - 6 * k, 9, 260 * k); ring(r.left + r.width / 2, r.bottom - 4 * k, 4 * k, 46 * k, 0.5, 2, 0.3); kick(i, 0, 150, rand(-1, 1)); }
       });
-      if (!introDone.mo && it > 1.0) { introDone.mo = true; const r = g.rs[3]; shards(r.left + r.width * 0.5, r.top + r.height / 2, 16, 'rgb(' + CY + ')', 240 * k, -0.5); ring(r.left + r.width / 2, r.top + r.height / 2, 10 * k, 150 * k, 0.7, 3); flash(r.left + r.width / 2, r.top + r.height / 2, 190 * k, 0.4); kick(3, -260, 0, 1.2); }
+      if (!introDone.mo && it > 1.0) { introDone.mo = true; const r = g.rs[N()]; shards(r.left + r.width * 0.5, r.top + r.height / 2, 16, 'rgb(' + CY + ')', 240 * k, -0.5); ring(r.left + r.width / 2, r.top + r.height / 2, 10 * k, 150 * k, 0.7, 3); flash(r.left + r.width / 2, r.top + r.height / 2, 190 * k, 0.4); kick(N(), -260, 0, 1.2); }
     }
 
     // ---- the shot
@@ -127,18 +128,18 @@ const TitleFx = (() => {
       }
       // punch each letter as the nose reaches its middle
       g.rs.forEach((r, i) => {
-        const cx = r.left + r.width * (i === 3 ? 0.22 : 0.5);
+        const cx = r.left + r.width * (i === N() ? 0.12 : 0.5);
         if (hitDone[i] || bullet.x < cx) return;
         hitDone[i] = true;
-        if (i < 3) { shards(cx, g.y, 13, '#ffffff', 300 * k, 0.9); sparks(cx, g.y, 6, 420 * k); kick(i, 520, -170, rand(2.5, 4.5) * (i % 2 ? -1 : 1)); ring(cx, g.y, 4 * k, 60 * k, 0.45, 2, 0.6); }
-        else { shards(cx, g.y, 20, 'rgb(' + CY + ')', 360 * k, 0.9); shards(cx, g.y, 8, '#0a3a48', 260 * k, 0.9); sparks(cx, g.y, 10, 520 * k); kick(3, 640, -90, 2.2); ring(cx, g.y, 6 * k, 120 * k, 0.5, 3, 0.7); flash(cx, g.y, 170 * k, 0.5); }
+        if (i < N()) { shards(cx, g.y, 13, '#ffffff', 300 * k, 0.9); sparks(cx, g.y, 6, 420 * k); kick(i, 520, -170, rand(2.5, 4.5) * (i % 2 ? -1 : 1)); ring(cx, g.y, 4 * k, 60 * k, 0.45, 2, 0.6); }
+        else { shards(cx, g.y, 20, 'rgb(' + CY + ')', 360 * k, 0.9); shards(cx, g.y, 8, '#0a3a48', 260 * k, 0.9); sparks(cx, g.y, 10, 520 * k); kick(N(), 640, -90, 2.2); ring(cx, g.y, 6 * k, 120 * k, 0.5, 3, 0.7); flash(cx, g.y, 170 * k, 0.5); }
       });
       // exit wound on the far side of MO, right as time snaps back
       if (!hitDone.exit && T >= SNAP) {
-        hitDone.exit = true; const r = g.rs[3], ex = r.right - 4 * k;
+        hitDone.exit = true; const r = g.rs[N()], ex = r.right - 4 * k;
         shards(ex, g.y, 26, 'rgb(' + CY + ')', 620 * k, 1.5); sparks(ex, g.y, 16, 900 * k);
         ring(ex, g.y, 10 * k, 260 * k, 0.6, 4); flash(ex, g.y, 320 * k, 0.45, '255,255,255');
-        kick(3, 300, 60, -1.6); letters.forEach((_, i) => kick(i, 120, rand(-80, 80), rand(-1.5, 1.5)));
+        kick(N(), 300, 60, -1.6); letters.forEach((_, i) => kick(i, 120, rand(-80, 80), rand(-1.5, 1.5)));
       }
     } else if (bullet && T >= EXIT) bullet = null;
 

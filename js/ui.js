@@ -603,7 +603,7 @@ const UI = (() => {
     openModal('privacy', `
       <h2>PRIVACY POLICY</h2>
       <div class="policy">
-        <p><b>Short version:</b> Slo-Mo does not collect, sell or share personal information.</p>
+        <p><b>Short version:</b> Tempo Breach does not collect, sell or share personal information.</p>
         <h3>What the game stores</h3>
         <p>Only your game progress: levels cleared, stars, coins, unlocked items, settings, daily missions and best scores. It contains no name, email address, location or contact details.</p>
         <h3>Where it is stored</h3>

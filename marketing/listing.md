@@ -1,5 +1,5 @@
 Game title
-Slo-Mo
+Tempo Breach
 
 Category
 Action
@@ -11,7 +11,7 @@ Short description
 Bend time, slide under bullets and flip through rooms full of gunmen in a slow-motion ragdoll shootout.
 
 Description
-Slo-Mo is a fast, stylish 2D shooter where you control time. Burst through doors, sprint, slide under incoming fire and front-flip over enemies, then slow the world down to line up the perfect shot. Every bullet is a real projectile you can see, dodge and even shoot out of the air. One hit is all it takes, for you and for most of them.
+Tempo Breach is a fast, stylish 2D shooter where you control time. Burst through doors, sprint, slide under incoming fire and front-flip over enemies, then slow the world down to line up the perfect shot. Every bullet is a real projectile you can see, dodge and even shoot out of the air. One hit is all it takes, for you and for most of them.
 
 Enemies don't just fall over. They crumple, spin and tumble as full physics ragdolls, and crates, glass and explosive barrels react to every shot. Chain kills together for combos, earn style bonuses for headshots, flip kills, slide kills and multi kills, and race the clock for three stars on every level.
 
