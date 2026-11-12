@@ -45,6 +45,7 @@ const UI = (() => {
     Game.on('death', onDeath);
     Game.on('respawn', () => { $('death').classList.add('hidden'); updateChip(); });
     Game.on('room', () => { updateChip(); });
+    Game.on('perks', openPerks);
     Game.on('breach', () => { const b = $('breachBanner'); b.classList.remove('go'); void b.offsetWidth; b.classList.add('go'); });
     Game.on('flipReload', () => { const a = $('ammo'); a.classList.remove('flash'); void a.offsetWidth; a.classList.add('flash'); });
     Game.on('start', () => { updateChip(); $('death').classList.add('hidden'); });
@@ -353,7 +354,7 @@ const UI = (() => {
       Icons.hydrate($('chipNum'));
       const dly = Game.endless.daily;
       $('chipTitle').textContent = dly ? 'DAILY RUN' : 'ENDLESS';
-      $('chipSub').innerHTML = 'ROOM ' + (cur + 1) + (dly ? '/' + Game.endless.len : '') + ' <span class="hearts">' + [0, 1, 2].map(i => `<i class="${i < Game.lives ? 'on' : ''}"></i>`).join('') + '</span>';
+      $('chipSub').innerHTML = 'ROOM ' + (cur + 1) + (dly ? '/' + Game.endless.len : '') + ' <span class="hearts">' + [...Array(Math.max(3, Game.lives)).keys()].map(i => `<i class="${i < Game.lives ? 'on' : ''}"></i>`).join('') + '</span>';
       $('roomDots').innerHTML = '';
     } else {
       $('chipNum').textContent = Game.levelIdx + 1;
@@ -419,7 +420,8 @@ const UI = (() => {
           clearTimeout(flipAnimT); flipAnimT = setTimeout(() => fl.classList.remove('pop', 'used'), 460);
         }
         lastFlips = fi.left;
-        [...$('flipPips').children].forEach((el, i) => el.classList.toggle('off', i >= fi.left));
+        const fp = $('flipPips'); while (fp.children.length < fi.max) fp.appendChild(document.createElement('i')); while (fp.children.length > fi.max) fp.lastChild.remove();
+        [...fp.children].forEach((el, i) => el.classList.toggle('off', i >= fi.left));
         fl.classList.toggle('empty', fi.left <= 0);
       }
       $('flipCharge').style.transform = `scaleX(${fi.recharge.toFixed(3)})`;
@@ -450,7 +452,7 @@ const UI = (() => {
     }
     // endless: three lives. A lost life retries the same room; with none left the run is over.
     const lives = d.lives || 0;
-    $('deathLives').innerHTML = [0, 1, 2].map(i => `<span class="ic ${i < lives ? 'on' : ''}" data-icon="heart"></span>`).join('');
+    $('deathLives').innerHTML = [...Array(Math.max(3, lives)).keys()].map(i => `<span class="ic ${i < lives ? 'on' : ''}" data-icon="heart"></span>`).join('');
     Icons.hydrate($('deathLives'));
     $('deathLives').classList.remove('hidden');
     if (lives > 0) {
@@ -627,6 +629,24 @@ const UI = (() => {
   function applySettings() {
     const st = S().settings;
     Sfx.setSfx(st.sfx); Sfx.setMusic(st.music);
+  }
+
+  /* ------------------------------------------------------------ perks */
+  function openPerks(d) {
+    openModal('perks', `
+      <h2 class="win">PICK AN UPGRADE</h2>
+      <p class="sub">ENDLESS · ${d.room} ROOMS CLEARED · LASTS THIS RUN</p>
+      <div class="perks">${d.choices.map((id, i) => {
+        const p = PERK[id], lv = d.owned[id] || 0;
+        return `<button class="perk" data-id="${id}" style="animation-delay:${0.08 + i * 0.08}s">
+          <span class="pk-ic"><span class="ic" data-icon="${p.icon}"></span></span>
+          <b>${p.name}</b><small>${p.desc}</small>
+          ${p.max < 99 ? `<span class="pk-lv">${[...Array(p.max).keys()].map(j => `<i class="${j < lv ? 'on' : j === lv ? 'next' : ''}"></i>`).join('')}</span>` : ''}
+        </button>`;
+      }).join('')}</div>`);
+    $('sheet').querySelectorAll('.perk').forEach(b => {
+      b.onclick = () => { click(); closeModal(); Game.pickPerk(b.dataset.id); updateChip(); };
+    });
   }
 
   /* ------------------------------------------------- daily hub (rewards + missions) */

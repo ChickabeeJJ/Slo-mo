@@ -50,7 +50,7 @@ const Game = (() => {
   const diff = () => (mode === 'endless' ? clamp(endless.daily ? 0.35 + endless.n * 0.11 : 0.25 + endless.n * 0.06, 0, 1) : mode === 'campaign' ? levelDiff(levelIdx) : 0.3);
 
   function newRun() {
-    return { score: 0, kills: 0, headshots: 0, deaths: 0, combo: 0, comboT: 0, bestCombo: 0, deflects: 0, time: 0, rooms: 0, lives: 3 };
+    return { score: 0, kills: 0, headshots: 0, deaths: 0, combo: 0, comboT: 0, bestCombo: 0, deflects: 0, time: 0, rooms: 0, lives: 3, perks: {} };
   }
 
   // the home screen plays a looping slow-motion shootout behind the menu
@@ -118,7 +118,10 @@ const Game = (() => {
   let godMode = false, zoomK = 1;
   // BREACH: every room you walk into opens with a burst of bullet time. Kills inside it score extra.
   let breachPending = false, breachT = 0;
-  const BREACH_TIME = 1.9;       // capture-tool only
+  const BREACH_TIME = 1.9;
+  const perk = id => (run && run.perks && run.perks[id]) || 0;
+  const flipMax = () => FLIP_CHAIN + perk('acro');
+  const breachTime = () => BREACH_TIME * (1 + 0.5 * perk('breach'));       // capture-tool only
   let roomFocus = 1, roomPickup = null, roomArmor = null;     // what you walked into the room with
   function loadRoom(i) {
     if (mode === 'campaign' && !level.rooms[i]) i = level.rooms.length - 1;
@@ -378,8 +381,8 @@ const Game = (() => {
     if (breachPending && !fade && state === 'play' && player && player.alive) {
       breachPending = false;
       if (enemies.some(e => e.alive)) {
-        breachT = BREACH_TIME;
-        slowMo(BREACH_TIME * 0.62, 0.3);
+        breachT = breachTime();
+        slowMo(breachT * 0.62, 0.3);
         Sfx.slowIn(); shake(4);
         Fx.ring(player.x, player.y - 46, 300, '#45dcff', 7, 0.6);
         emit('breach');
@@ -397,7 +400,7 @@ const Game = (() => {
     const wdt = dtReal * tsEff;
     const pdt = dtReal * (1 - (1 - tsEff) * 0.52);
     if (state === 'play') {
-      if (slowOn) { focus -= dtReal * 0.23; if (focus <= 0) { focus = 0; slowOn = false; Sfx.slowOut(); } }
+      if (slowOn) { focus -= dtReal * 0.23 * Math.pow(0.75, perk('focus')); if (focus <= 0) { focus = 0; slowOn = false; Sfx.slowOut(); } }
       else focus = Math.min(1, focus + dtReal * 0.045);
       run.time += dtReal; roomT += dtReal;
       if (run.comboT > 0) { run.comboT -= dtReal; if (run.comboT <= 0) run.combo = 0; }
@@ -532,7 +535,7 @@ const Game = (() => {
     const spinning = (p.pickup || p.weapon).spin > 0.05;
     if (spinning) p.sprinting = false;
     const swift = p.armorHp && p.armorHp.legs && ARMOR_BY[p.armorHp.legs.id].ability === 'swift' ? 1.07 : 1;
-    const want = swift * mx * (p.sprinting ? SPRINT : WALK) * (spinning && w.heavy ? 0.45 : spinning ? 0.7 : 1);
+    const want = swift * (1 + 0.08 * perk('feet')) * mx * (p.sprinting ? SPRINT : WALK) * (spinning && w.heavy ? 0.45 : spinning ? 0.7 : 1);
 
     // timers
     p.coyote = p.grounded ? 0.1 : p.coyote - dt;
@@ -599,7 +602,7 @@ const Game = (() => {
       // another one, and half a second on the ground resets the chain.
       // the chain only resets after half a second on the ground (see the air timer below)
       p.flipChain = p.flipChain || 0;
-      if (Math.abs(p.vx) > 320 && p.flipChain < FLIP_CHAIN) {
+      if (Math.abs(p.vx) > 320 && p.flipChain < flipMax()) {
         p.flipping = true; p.flip = 0; p.flipDir = Math.sign(p.vx) * p.facing;
         p.flipChain++;
         if (p.flipChain > 1) Fx.text(p.x, p.y - 120, 'FLIP x' + p.flipChain, '#1d2130', 14);
@@ -746,7 +749,7 @@ const Game = (() => {
       x: poseX, y: p.y, facing: p.facing, aim: p.aim, vx: p.vx, vy: p.vy, grounded: p.grounded || p.airSlide, slide: sliding, flip: p.flipping ? p.flip * p.flipDir : 0,
       sprint: p.sprinting, gun: true, twoHand: TWO_HAND.has(ww.id), dual: ww.dual, kick: p.weapon.kick, kick2: p.weapon.kick2,
       slideFront, slideBack, slope: p.slopeS,
-      reload: !p.pickup && p.weapon.reloadT > 0 ? 1 - p.weapon.reloadT / WEAPON[p.weapon.id].reload : 0,
+      reload: !p.pickup && p.weapon.reloadT > 0 ? clamp(1 - p.weapon.reloadT / (WEAPON[p.weapon.id].reload * Math.pow(0.7, perk('hands'))), 0, 1) : 0,
     }, dt);
     if (p.body.flash > 0) p.body.flash -= dt * 4;
     if (p.invuln > 0) p.invuln -= dt;
@@ -854,7 +857,7 @@ const Game = (() => {
   function startReload() {
     const p = player;
     if (p.pickup || p.weapon.reloadT > 0) return;
-    p.weapon.reloadT = WEAPON[p.weapon.id].reload;
+    p.weapon.reloadT = WEAPON[p.weapon.id].reload * Math.pow(0.7, perk('hands'));
     Sfx.dry();
   }
 
@@ -1355,13 +1358,13 @@ const Game = (() => {
     lastKillT = clock;
     run.combo++; run.comboT = 3; run.bestCombo = Math.max(run.bestCombo, run.combo);
     const mult = Math.min(4, 1 + (run.combo - 1) * 0.25);
-    const total = Math.round(pts * mult);
+    const total = Math.round(pts * mult * (1 + 0.2 * perk('show')));
     run.score += total; run.kills++;
     track('kills');
     const c = e.body.center();
     Fx.text(c.x, c.y - 60, tags.length ? tags.join(' + ') : 'KILL', '#e2434b', tags.length ? 22 : 18, '+' + total + (run.combo > 1 ? '  x' + mult.toFixed(2).replace(/\.?0+$/, '') : ''));
     if (run.combo > 1) Sfx.combo(run.combo);
-    focus = Math.min(1, focus + 0.2);
+    focus = Math.min(1, focus + 0.2 + 0.1 * perk('adren'));
     emit('kill', { combo: run.combo, total });
     // last one in the room: kill cam
     if (mode !== 'menu' && enemies.every(o => !o.alive) && ambushes.every(a => a.state === 'done' || a.state === 'skip')) {
@@ -1502,6 +1505,8 @@ const Game = (() => {
       if (mode === 'endless') { endless.n++; track('endlessRooms'); Save.data.endlessRooms++; }
       if (last) { completeLevel(); return; }
       if (mode === 'endless' && endless.daily && endless.n >= endless.len) { state = 'complete'; Sfx.win(); emit('dailyDone'); return; }
+      // Endless: after every 3rd room, stop at the door and pick an upgrade
+      if (mode === 'endless' && !endless.daily && endless.n % 3 === 0) { offerPerks(); return; }
       fade = { phase: 'out', t: 0, cb: () => { loadRoom(roomIdx + 1); emit('room'); } };
     }
   }
@@ -1531,6 +1536,25 @@ const Game = (() => {
         emit('respawn');
       },
     };
+  }
+
+  function offerPerks() {
+    const hasArmour = player.armorHp && Object.values(player.armorHp).some(a => a.hp < a.max);
+    const pool = PERKS.filter(p => perk(p.id) < p.max && (!p.armour || hasArmour) && !(p.id === 'life' && run.lives >= 5));
+    const pickN = [];
+    while (pickN.length < 3 && pool.length) pickN.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0].id);
+    if (!pickN.length) { fade = { phase: 'out', t: 0, cb: () => { loadRoom(roomIdx + 1); emit('room'); } }; return; }
+    state = 'perk'; paused = true;
+    emit('perks', { choices: pickN, room: endless.n, owned: Object.assign({}, run.perks) });
+  }
+  function pickPerk(id) {
+    if (state !== 'perk' || !PERK[id]) return;
+    run.perks[id] = perk(id) + 1;
+    if (id === 'life') run.lives = Math.min(5, run.lives + 1);
+    if (id === 'patch') { applyArmor(player, null); roomArmor = null; }
+    state = 'play'; paused = false;
+    Sfx.unlock();
+    fade = { phase: 'out', t: 0, cb: () => { loadRoom(roomIdx + 1); emit('room'); } };
   }
 
   function completeLevel() {
@@ -1954,7 +1978,7 @@ const Game = (() => {
   /* ------------------------------------------------------------- api */
   return {
     init, resize, update, render, on, setKey, press, setMouse, setAxis, setAimStick, setTouchTarget,
-    startMenu, startLevel, startEndless, restartRoom, endEndless, toggleSlow,
+    startMenu, startLevel, startEndless, restartRoom, pickPerk, endEndless, toggleSlow,
     get state() { return state; }, get mode() { return mode; }, get paused() { return paused; },
     set paused(v) { paused = v; },
     get focus() { return focus; }, get breachT() { return breachT; }, get slowOn() { return slowOn; }, get ts() { return ts; },
@@ -1971,7 +1995,7 @@ const Game = (() => {
     get flipInfo() {
       if (!player) return null;
       const used = player.flipChain || 0;
-      return { max: FLIP_CHAIN, left: FLIP_CHAIN - used, recharge: used > 0 && player.grounded ? clamp((player.groundT || 0) / 0.5, 0, 1) : 0 };
+      return { max: flipMax(), left: flipMax() - used, recharge: used > 0 && player.grounded ? clamp((player.groundT || 0) / 0.5, 0, 1) : 0 };
     },
     get nearPickup() { return player && player.nearPickup; },
     get input() { return input; },

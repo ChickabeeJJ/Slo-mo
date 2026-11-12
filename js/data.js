@@ -135,4 +135,17 @@ const STYLE = {
   last: { label: 'CLEAN', pts: 0 },
   close: { label: 'CLOSE CALL', pts: 40 },
 };
+// Endless upgrades: after every 3rd room you pick one of three. They stack and last the run.
+const PERKS = [
+  { id: 'life', name: 'Second Wind', icon: 'heart', desc: '+1 life (up to 5).', max: 2 },
+  { id: 'focus', name: 'Deep Focus', icon: 'clock', desc: 'Slow motion drains 25% slower.', max: 3 },
+  { id: 'adren', name: 'Adrenaline', icon: 'fire', desc: 'Kills refill 10% more slow motion.', max: 3 },
+  { id: 'hands', name: 'Quick Hands', icon: 'reload', desc: 'Reload 30% faster.', max: 2 },
+  { id: 'feet', name: 'Light Feet', icon: 'up', desc: 'Move 8% faster.', max: 3 },
+  { id: 'acro', name: 'Acrobat', icon: 'flip', desc: '+1 flip in a chain.', max: 2 },
+  { id: 'breach', name: 'Long Breach', icon: 'target', desc: 'Breach bullet time lasts 50% longer.', max: 2 },
+  { id: 'show', name: 'Showboat', icon: 'star', desc: '+20% score from every kill.', max: 3 },
+  { id: 'patch', name: 'Patch Up', icon: 'shield', desc: 'Repair all your armour now.', max: 99, armour: true },
+];
+const PERK = Object.fromEntries(PERKS.map(p => [p.id, p]));
 const TWO_HAND = new Set(['smg', 'burst', 'shotgun', 'rifle', 'launcher', 'minigun', 'railgun']);
