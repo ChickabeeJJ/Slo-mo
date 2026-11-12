@@ -46,9 +46,6 @@ const UI = (() => {
     Game.on('respawn', () => { $('death').classList.add('hidden'); updateChip(); });
     Game.on('room', () => { updateChip(); });
     Game.on('perks', openPerks);
-    Game.on('frenzy', on => document.body.classList.toggle('frenzy', !!on));
-    Game.on('start', () => document.body.classList.remove('frenzy'));
-    Game.on('respawn', () => document.body.classList.remove('frenzy'));
     Game.on('banner', d => { const b = $('eventBanner'); b.innerHTML = `<b>${d.title}</b><small>${d.sub || ''}</small>`; b.classList.remove('go'); void b.offsetWidth; b.classList.add('go'); });
     Game.on('flipReload', () => { const a = $('ammo'); a.classList.remove('flash'); void a.offsetWidth; a.classList.add('flash'); });
     Game.on('start', () => { updateChip(); $('death').classList.add('hidden'); });

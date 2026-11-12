@@ -116,9 +116,7 @@ const Game = (() => {
   function roomDef(i) { return mode === 'endless' ? endlessRoom(endless.seed, i) : level.rooms[i]; }
 
   let godMode = false, zoomK = 1;
-  // FRENZY: every 5th kill in a combo gives a few seconds of infinite ammo, faster fire and speed
-  let frenzyT = 0;
-  const FRENZY_TIME = 4.5, KICK_DUR = 0.32;
+  const KICK_DUR = 0.18;             // a fast, snappy kick
   const perk = id => (run && run.perks && run.perks[id]) || 0;
   const flipMax = () => FLIP_CHAIN + perk('acro');
   let roomFocus = 1, roomPickup = null, roomArmor = null;     // what you walked into the room with
@@ -159,7 +157,7 @@ const Game = (() => {
     panes = room.panesDef.map(g => Object.assign({}, g, { broken: false }));
     doorOpen = true;            // exits are always open: clearing the room is optional, just worth points
     clearT = -1; roomT = 0; deathT = 0;
-    forcedT = 0; hitstop = 0; frenzyT = 0;
+    forcedT = 0; hitstop = 0;
   }
   // Armour durability lasts a whole level (or Endless run): damage carries from room to room, a room
   // reset gives back exactly what you walked into that room with, and a new level repairs it fully.
@@ -386,8 +384,7 @@ const Game = (() => {
     const wdt = dtReal * tsEff;
     const pdt = dtReal * (1 - (1 - tsEff) * 0.52);
     if (state === 'play') {
-      if (frenzyT > 0) { frenzyT -= dtReal; if (frenzyT <= 0) emit('frenzy', false); }
-      if (slowOn) { focus -= dtReal * 0.23 * Math.pow(0.75, perk('focus')) * (frenzyT > 0 ? 0 : 1); if (focus <= 0) { focus = 0; slowOn = false; Sfx.slowOut(); } }
+      if (slowOn) { focus -= dtReal * 0.23 * Math.pow(0.75, perk('focus')); if (focus <= 0) { focus = 0; slowOn = false; Sfx.slowOut(); } }
       else focus = Math.min(1, focus + dtReal * 0.045);
       run.time += dtReal; roomT += dtReal;
       if (run.comboT > 0) { run.comboT -= dtReal; if (run.comboT <= 0) run.combo = 0; }
@@ -522,7 +519,7 @@ const Game = (() => {
     const spinning = (p.pickup || p.weapon).spin > 0.05;
     if (spinning) p.sprinting = false;
     const swift = p.armorHp && p.armorHp.legs && ARMOR_BY[p.armorHp.legs.id].ability === 'swift' ? 1.07 : 1;
-    const want = swift * (1 + 0.08 * perk('feet')) * (frenzyT > 0 ? 1.15 : 1) * mx * (p.sprinting ? SPRINT : WALK) * (spinning && w.heavy ? 0.45 : spinning ? 0.7 : 1);
+    const want = swift * (1 + 0.08 * perk('feet')) * mx * (p.sprinting ? SPRINT : WALK) * (spinning && w.heavy ? 0.45 : spinning ? 0.7 : 1);
 
     // timers
     p.coyote = p.grounded ? 0.1 : p.coyote - dt;
@@ -711,7 +708,7 @@ const Game = (() => {
     // ---- kick: a quick front kick that launches whatever it connects with
     if (p.kickCd > 0) p.kickCd -= dt;
     if (pressed.has('kick') && !(p.kickCd > 0) && !p.crawl) {
-      p.kickT = KICK_DUR; p.kickCd = 0.5; p.kickDone = false;
+      p.kickT = KICK_DUR; p.kickCd = 0.38; p.kickDone = false;
       Sfx.swing();
       if (!p.grounded && p.vy > -100) p.vy = Math.min(p.vy, 120);       // a flying kick hangs for a moment
     }
@@ -862,9 +859,8 @@ const Game = (() => {
   }
 
   function fire(c, w, ws, followUp) {
-    const fr = c === player && frenzyT > 0;
-    if (!followUp) ws.cd = w.rate * (fr ? 0.6 : 1);
-    if (!fr) ws.ammo--;
+    if (!followUp) ws.cd = w.rate;
+    ws.ammo--;
     ws.held = true;
     const dual = !!w.dual;
     const second = dual && (ws.alt = (ws.alt || 0) ^ 1) === 1;
@@ -1361,7 +1357,6 @@ const Game = (() => {
     if (clock - lastKillT < 0.45) { multiCount++; if (multiCount === 1) { tags.push('MULTI KILL'); pts += 100; track('multis'); } } else multiCount = 0;
     lastKillT = clock;
     run.combo++; run.comboT = 3; run.bestCombo = Math.max(run.bestCombo, run.combo);
-    if (mode !== 'menu' && run.combo % 5 === 0) startFrenzy();
     const mult = Math.min(4, 1 + (run.combo - 1) * 0.25);
     const total = Math.round(pts * mult * (1 + 0.2 * perk('show')));
     run.score += total; run.kills++;
@@ -1409,13 +1404,6 @@ const Game = (() => {
   }
 
   // a shot barrel hisses and glows for a moment, then goes up
-  function startFrenzy() {
-    const fresh = !(frenzyT > 0);
-    frenzyT = FRENZY_TIME;
-    if (!player.pickup) { player.weapon.ammo = WEAPON[player.weapon.id].mag; player.weapon.reloadT = 0; }
-    if (fresh) { Sfx.unlock(); Fx.ring(player.x, player.y - 46, 260, '#45dcff', 8, 0.55); emit('frenzy', true); emit('banner', { title: 'FRENZY', sub: 'INFINITE AMMO · FASTER FIRE' }); }
-  }
-
   // The kick: kills on contact (it's a risk to get that close), launches the body, sends crates and
   // barrels flying and bats enemy rounds back the way they came.
   function doKick(p) {
@@ -2084,7 +2072,7 @@ const Game = (() => {
     startMenu, startLevel, startEndless, restartRoom, pickPerk, endEndless, toggleSlow,
     get state() { return state; }, get mode() { return mode; }, get paused() { return paused; },
     set paused(v) { paused = v; },
-    get focus() { return focus; }, get frenzyT() { return frenzyT; }, get slowOn() { return slowOn; }, get ts() { return ts; },
+    get focus() { return focus; }, get slowOn() { return slowOn; }, get ts() { return ts; },
     get run() { return run; }, get level() { return level; }, get levelIdx() { return levelIdx; }, get roomIdx() { return roomIdx; },
     get roomCount() { return mode === 'endless' ? (endless.daily ? endless.len : endless.n + 1) : level.rooms.length; },
     get armorState() { return player && player.armorHp ? ['head', 'body', 'legs'].map(s => player.armorHp[s] ? Object.assign({ slot: s }, player.armorHp[s]) : null) : []; },
