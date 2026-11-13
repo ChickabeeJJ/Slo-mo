@@ -650,3 +650,17 @@ body.touch .breach-banner b { font-size: 30px; }
 /* kick: to the left of SLIDE, level with it */
 .tb-kick { right: calc(var(--tb) * 2.25 + var(--gap) * 2); bottom: calc(var(--tb) * 0.08); width: calc(var(--tb) * 0.84); height: calc(var(--tb) * 0.84); }
 
+
+/* ------------------------------------------------------------ scrollbars */
+/* Every scrolling area (level list, armory, sheets, the privacy policy) gets a slim themed bar
+   instead of the browser's grey one: a faint dark rail and a cyan thumb that brightens on use. */
+/* Firefox only: in Chrome the standard properties would switch off the custom bar below */
+@supports (-moz-appearance: none) { * { scrollbar-width: thin; scrollbar-color: rgba(var(--acc-rgb), 0.5) rgba(255, 255, 255, 0.04); } }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.035); border-radius: 8px; margin: 6px; }
+::-webkit-scrollbar-thumb { background: linear-gradient(180deg, rgba(var(--acc-rgb), 0.75), rgba(var(--acc-rgb), 0.45)); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; min-height: 36px; }
+::-webkit-scrollbar-thumb:hover { background: var(--acc); border-width: 1px; }
+::-webkit-scrollbar-thumb:active { background: var(--acc-hi); border-width: 1px; }
+::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
+.sheet::-webkit-scrollbar, .policy::-webkit-scrollbar { width: 6px; }
