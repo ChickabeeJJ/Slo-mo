@@ -253,7 +253,8 @@ body.dark-room .hud-mid { color: #fff; text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6); 
 .death-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; width: 100%; }
 .death-btns .btn { min-height: 56px; flex-direction: row; gap: 10px; }
 .death-btns .btn .bt { display: flex; flex-direction: column; align-items: flex-start; }
-.death-btns .btn.wide { grid-column: 1 / -1; }
+.death-btns .btn.wide { grid-column: 1 / -1; justify-content: center; text-align: center; }
+.death-btns .btn.wide .bt { align-items: center; }
 .death .lives { display: flex; gap: 6px; }
 .death .lives .ic { width: 22px; height: 22px; color: rgba(255, 255, 255, 0.14); }
 .death .lives .ic.on { color: #ff5d73; }

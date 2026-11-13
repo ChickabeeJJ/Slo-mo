@@ -762,6 +762,19 @@ const Game = (() => {
   function unstick(p, dt) {
     if (p.airSlide && p.grounded) { p.airSlide = false; startSlide(p, p.slideDir); }
     if (p.slideT > 4) p.slideT = 1.3;
+    // Wedged in mid-air (resting on a crate's edge against a step, say): the body isn't moving
+    // but never counts as landed, so a mid-air slide or flip would never end. After a moment
+    // of not moving at all, treat it as a landing.
+    if (!p.grounded) {
+      const still = Math.abs(p.x - (p.airX ?? p.x)) < 0.6 && Math.abs(p.y - (p.airY ?? p.y)) < 0.6;
+      p.airStill = still ? (p.airStill || 0) + dt : 0;
+      p.airX = p.x; p.airY = p.y;
+      if (p.airStill > 0.3) {
+        p.airStill = 0; p.airSlide = false; p.flipping = false; p.flip = 0; p.slideT = 0; p.vy = 0;
+        if (tryStand(p)) { p.crawl = false; } else { p.h = SLIDE_H; p.crawl = true; if (!p.slideDir) p.slideDir = p.facing; }
+        p.y -= 1; p.grounded = true; p.groundT = 0;
+      }
+    } else p.airStill = 0;
     const low = p.slideT > 0 || p.crawl || p.h !== STAND_H;
     if (!low || !p.grounded) { p.lowT = 0; p.lowStill = 0; return; }
     p.lowT = (p.lowT || 0) + dt;
