@@ -62,7 +62,6 @@ const UI = (() => {
     // Orientation tutorial). The menu is built underneath, so quitting goes back to it.
     if (!(Save.data.stars[0] > 0)) play(0);
     checkRotate();
-    if (Save.streakState().claimable && Save.data.stats.levels > 0) setTimeout(openStreak, 600);
   }
 
   function click() { Sfx.click(); }
