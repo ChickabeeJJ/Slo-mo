@@ -548,7 +548,7 @@ const Game = (() => {
     if (p.slideT > 0) {
       p.slideT -= dt;
       p.vx = approach(p.vx, 0, (p.grounded ? 330 : 60) * dt);
-      if (p.grounded && Math.random() < 0.5) Fx.dust(p.x - p.slideDir * 10, p.y, 1, room.theme.side, 0.4);
+      if (p.grounded && Math.random() < 30 * dt) Fx.dust(p.x - p.slideDir * 10, p.y, 1, room.theme.side, 0.4);
       if (p.slideT <= 0 || Math.abs(p.vx) < 120) {
         p.slideT = 0;
         if (!tryStand(p)) { p.crawl = true; p.vx = p.slideDir * Math.max(170, Math.abs(p.vx)); }
@@ -677,7 +677,7 @@ const Game = (() => {
         const was = pw.chargeT; pw.chargeT += dt;
         if (Math.floor(was / w.charge * 4) !== Math.floor(pw.chargeT / w.charge * 4)) Sfx.spin(0.4 + pw.chargeT / w.charge * 0.6);
         const mzc = p.body.muzzle(w.len), k = pw.chargeT / w.charge;
-        if (Number.isFinite(mzc.x) && Math.random() < 0.7) { const a = rand(0, TAU), r = 26 + rand(0, 16) * (1 - k); Fx.trail(mzc.x + Math.cos(a) * r * (1 - k * 0.7), mzc.y + Math.sin(a) * r * (1 - k * 0.7), '#8fd0ff'); }
+        if (Number.isFinite(mzc.x) && Math.random() < 42 * dt) { const a = rand(0, TAU), r = 26 + rand(0, 16) * (1 - k); Fx.trail(mzc.x + Math.cos(a) * r * (1 - k * 0.7), mzc.y + Math.sin(a) * r * (1 - k * 0.7), '#8fd0ff'); }
         if (pw.chargeT >= w.charge) { pw.chargeT = 0; wantShoot = ready; if (wantShoot) Sfx.charged(); }
       }
     } else pw.chargeT = 0;
@@ -1073,7 +1073,7 @@ const Game = (() => {
         return 0;
       case 'charge': {
         e.facing = e.chargeDir;
-        if (Math.random() < 0.6) Fx.dust(e.x - e.chargeDir * 14, e.y, 1, room.theme.side, 0.5);
+        if (Math.random() < 36 * dt) Fx.dust(e.x - e.chargeDir * 14, e.y, 1, room.theme.side, 0.5);
         if (p.alive && Math.abs(p.x - e.x) < 36 && p.y > e.y - 72 && p.y < e.y + 10) killPlayer(e.chargeDir * 1000, -450, e);
         if (e.blocked) { e.bstate = 'stun'; e.bt = 1.4; shake(9); Sfx.crate(); Fx.dust(e.x + e.chargeDir * 20, e.y - 50, 10, '#c9c9cf', 1); Fx.text(e.x, e.y - 140, 'STUNNED', '#1d2130', 16); return 0; }
         if (e.bt <= 0) { e.bstate = 'walk'; e.chargeCd = 1.2; return 0; }
@@ -1157,7 +1157,7 @@ const Game = (() => {
       if (best) {
         const na = turnTo(a, Math.atan2(best.y - b.y, best.x - b.x), b.homing * dt);
         b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
-        if (Math.random() < 0.5) Fx.trail(b.x, b.y, '#8fd0ff');
+        if (Math.random() < 30 * dt) Fx.trail(b.x, b.y, '#8fd0ff');
       }
     }
     if (b.split && !b.didSplit && b.t >= b.split.t) {
@@ -1547,7 +1547,7 @@ const Game = (() => {
       }
       if (br.fuse < 0) continue;
       br.fuse -= dt;
-      if (Math.random() < 0.6) Fx.smoke(br.x + rand(-6, 6), br.y - br.h, 1, '#9b9ba3', 0.5);
+      if (Math.random() < 36 * dt) Fx.smoke(br.x + rand(-6, 6), br.y - br.h, 1, '#9b9ba3', 0.5);
       if (br.fuse <= 0) detonate(br, br.byPlayer);
     }
     updateStrikes(dt);

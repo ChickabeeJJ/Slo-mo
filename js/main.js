@@ -91,11 +91,15 @@
   });
 
   /* ------------------------------------------------------------- loop */
-  let last = performance.now();
+  // Fixed-step simulation: the game always advances in 1/240 s steps, however fast the display
+  // refreshes, so jumps, slides and enemy timing are identical at 60, 120, 144 or 165 Hz.
+  const STEP = 1 / 240;
+  let last = performance.now(), acc = 0;
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    Game.update(dt);
+    acc += dt;
+    while (acc >= STEP) { Game.update(STEP); acc -= STEP; }
     Game.render();
     UI.tick(dt);
     requestAnimationFrame(frame);
