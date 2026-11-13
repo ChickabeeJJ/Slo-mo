@@ -269,7 +269,10 @@ const Game = (() => {
       const e = makeEnemy(a.type === 'knife' ? 'knife' : 'grunt', spot.s.x, spot.s.y, false);
       e.surpriseT = 1.3;
       e.facing = player.x < e.x ? -1 : 1; e.aim = Math.atan2(player.y - 60 - (e.y - 74), player.x - e.x);
-      e.alert = true; e.reactT = e.def.react * reactMul() + (spot.m === 'behind' ? 0.75 : 0.5);
+      // surprise enemies open fire almost at once: a brief beat to register the '!', then a short
+      // (still visible) red sight line instead of the full aim
+      e.alert = true; e.reactT = spot.m === 'behind' ? 0.22 : 0.12; e.cd = 0;
+      e.charge = e.def.aim * aimMul() * 0.9 * 0.5;
       e.lastX = player.x; e.lastY = player.y - 58;
       e.body.alpha = 0;
       Fx.dust(e.x, e.y, 6, room.theme.side, 0.6);
