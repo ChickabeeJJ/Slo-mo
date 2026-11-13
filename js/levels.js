@@ -29,6 +29,7 @@ const TUTORIAL_TEXT = {
   barrel: ['Barrels go boom', 'Barrels go boom'],
   pickup: ['Press E to grab\na dropped gun', 'Walk over a dropped gun\nand tap GRAB'],
   deflect: ['Shoot bullets\nout of the air', 'Shoot bullets\nout of the air'],
+  kick: ['Get close and\npress F to kick', 'Get close and\ntap KICK'],
 };
 
 const THEMES = [
@@ -94,7 +95,7 @@ const HAND_LEVELS = [
           '#..................................#',
           '#.P.......T...........E.......D....#',
           '####################################',
-        ], text: [[6, 2.4, 'shoot']],
+        ], text: [[6, 2.4, 'shoot'], [17, 2.4, 'kick']],
       },
       {
         map: [

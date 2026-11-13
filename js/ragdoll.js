@@ -118,8 +118,7 @@ class Body {
     if (st.legKick != null) {
       const m = st.legKick, out = m < 0.28 ? m / 0.28 : m < 0.7 ? 1 : 1 - (m - 0.7) / 0.3;
       const hy = st.slide ? -10 : pel[1];
-      fFoot = [lerp(10, 44, out), lerp(hy + 22, hy - 2, out)];
-      fBend = 1;
+      fFoot = [lerp(10, 44, out), lerp(hy + 22, hy - 2, out)];      // knee bends the normal way (forward)
       neck = [neck[0] - 9 * out, neck[1] + 3 * out];
       if (st.grounded && !st.slide) bFoot = [-6, 0];
     }
